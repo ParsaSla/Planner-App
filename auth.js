@@ -38,10 +38,26 @@ function createUser(username, password) {
 function generateUID() {
     const users = readDB();
     if (users.length == 0) {
-        return 1;
+        return -1;
     }
     const lastUID = users.at(-1).UID;
     return lastUID + 1;
+}
+
+export function login(username, password) {
+    username = username.toLowerCase();
+    const users = readDB();
+    for (let user of users) {
+        if (user.username == username && user.password == password) {
+            return user.UID;
+        }
+    }
+    return false;
+}
+
+export function getUsername(UID) {
+    const users = readDB();
+    return users[UID].username;
 }
 
 // appendDB(user1);
