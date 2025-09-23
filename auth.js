@@ -13,6 +13,10 @@ function readDB() {
     return JSON.parse(data);
 }
 
+function writeDB(users) {
+    fs.writeFileSync(pathname, JSON.stringify(users, null, 2), 'utf8');
+}
+
 export function register(username, password) {
     username = username.toLowerCase();
     const users = readDB();
@@ -30,7 +34,8 @@ function createUser(username, password) {
     const user = {
         username: username,
         password: password,
-        UID: generateUID()
+        UID: generateUID(),
+        creation: new Date().toLocaleString()
     };
     return user;
 }
@@ -49,6 +54,8 @@ export function login(username, password) {
     const users = readDB();
     for (let user of users) {
         if (user.username == username && user.password == password) {
+            user.lastLogin = new Date().toLocaleString();
+            writeDB(users);
             return user.UID;
         }
     }
