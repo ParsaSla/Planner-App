@@ -59,7 +59,7 @@ export function login(username, password) {
             return user.UID;
         }
     }
-    return false;
+    return null;
 }
 
 export function getUsername(UID) {
