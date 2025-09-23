@@ -8,12 +8,15 @@
 <body>
     <h1>Planner App</h1>
     <p>This is a simple planner application.</p>   
-    <form action="/submit" method="post">
+    <form id="authForm">
         <label for="username">Username:</label>
         <input type="text" id="username" name="username" required><br><br>
         <label for="password">Password:</label>
         <input type="password" id="password" name="password" required><br><br>
         <input type="submit" value="Login / Register">
     </form>
+    <p id="feedback" style="color: red;">h</p>
+
+    <script src="client.js"></script>
 </body>
 </html>
