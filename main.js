@@ -1,6 +1,6 @@
 import { createInterface } from 'readline';
 import { register, login, getUsername } from './auth.js';
-import { createEvent, readEvents } from './user.js';
+import { createEvent, readEvents, deleteEvent } from './user.js';
 
 const rl = createInterface({
     input: process.stdin,
@@ -16,8 +16,10 @@ let UID = -1;
 while (true) {
 
     if (UID != -1) {
+        console.log('------------------');
+        console.log();
         console.log("welcome", getUsername(UID));
-        const choice = await ask('Q to logout, E to create event, R to read events: ');
+        const choice = await ask('Q to logout, E to create event, R to read events, D to delete event: ');
 
         if (choice == 'Q') {
             UID = -1;
@@ -39,6 +41,26 @@ while (true) {
             }
             if (events.length == 0) {
                 console.log('No events found');
+            }
+        }
+        else if (choice == 'D') {
+            const events = readEvents(UID);
+            for (let event of events) {
+                console.log('------------------');
+                console.log(event.prettyPrint());
+                console.log('------------------');
+            }
+            if (events.length == 0) {
+                console.log('No events found');
+            }
+            else {
+                const index = await ask('Event index to delete (starting from 0): ');
+                if (deleteEvent(UID, parseInt(index))) {
+                    console.log('Event deleted succesfully');
+                }
+                else {
+                    console.log('Invalid index');
+                }
             }
         }
     }

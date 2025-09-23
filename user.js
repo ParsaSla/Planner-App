@@ -47,6 +47,15 @@ export function createEvent(UID, title, date, type, description) {
     }
 }
 
+export function deleteEvent(UID, eventIndex) {
+    const user = readUser(UID);
+    if (user == null || !user.events || eventIndex < 0 || eventIndex >= user.events.length) {
+        return false;
+    }
+    user.events.splice(eventIndex, 1);
+    return writeUser(user);
+}
+
 export function readEvents(UID) {
     const user = readUser(UID);
     if (user == null || !user.events) {
