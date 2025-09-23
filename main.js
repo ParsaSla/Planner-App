@@ -1,6 +1,6 @@
 import { createInterface } from 'readline';
 import { register, login, getUsername } from './auth.js';
-import { createEvent } from './user.js';
+import { createEvent, readEvents } from './user.js';
 
 const rl = createInterface({
     input: process.stdin,
@@ -17,7 +17,7 @@ while (true) {
 
     if (UID != -1) {
         console.log("welcome", getUsername(UID));
-        const choice = await ask('Q to logout, E to create event: ');
+        const choice = await ask('Q to logout, E to create event, R to read events: ');
 
         if (choice == 'Q') {
             UID = -1;
@@ -29,6 +29,17 @@ while (true) {
             const description = await ask('Description: ');
             createEvent(UID, title, date, type, description);
             console.log('Event created succesfully');
+        }
+        else if (choice == 'R') {
+            const events = readEvents(UID);
+            for (let event of events) {
+                console.log('------------------');
+                console.log(event.prettyPrint());
+                console.log('------------------');
+            }
+            if (events.length == 0) {
+                console.log('No events found');
+            }
         }
     }
 
