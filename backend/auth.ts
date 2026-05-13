@@ -1,8 +1,10 @@
 import fs from 'fs';
 
+import { User } from './types/user.types.js';
+
 const pathname = 'data/authDB.json';
 
-function appendDB(user) {
+function appendDB(user: User) {
     const users = readDB();
     users.push(user);
     fs.writeFileSync(pathname, JSON.stringify(users, null, 2), 'utf8');
@@ -13,11 +15,11 @@ function readDB() {
     return JSON.parse(data);
 }
 
-function writeDB(users) {
+function writeDB(users: User[]) {
     fs.writeFileSync(pathname, JSON.stringify(users, null, 2), 'utf8');
 }
 
-export function register(username, password) {
+export function register(username: string, password: string) {
     username = username.toLowerCase();
     const users = readDB();
     for (let user of users) {
@@ -30,7 +32,7 @@ export function register(username, password) {
     return user.UID;
 }
 
-function createUser(username, password) {
+function createUser(username: string, password: string): User {
     const user = {
         username: username,
         password: password,
@@ -49,7 +51,7 @@ function generateUID() {
     return lastUID + 1;
 }
 
-export function login(username, password) {
+export function login(username: string, password: string) {
     username = username.toLowerCase();
     const users = readDB();
     for (let user of users) {
@@ -62,7 +64,7 @@ export function login(username, password) {
     return null;
 }
 
-export function getUsername(UID) {
+export function getUsername(UID: number) {
     const users = readDB();
     return users[UID].username;
 }

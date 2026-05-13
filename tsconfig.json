@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "esnext",
+    "lib": ["ES2020", "DOM"],
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "outDir": "./dist",
+    "rootDir": "./"
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

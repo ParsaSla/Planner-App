@@ -13,10 +13,13 @@
         <input type="text" id="username" name="username" required><br><br>
         <label for="password">Password:</label>
         <input type="password" id="password" name="password" required><br><br>
-        <input type="submit" value="Login / Register">
+        <label for="confirmPassword" id="confirmPasswordLabel" style="display: none;">Confirm Password:</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" style="display: none;"><br><br>
+        <input type="submit" value="Login" id="submitBtn">
     </form>
+    <button id="toggleBtn" type="button">No account? Register</button>
     <p id="feedback" style="color: red;">hello</p>
 
-    <script src="/login/login.js"></script>
+    <script type="module" src="/dist/public/login/login.js"></script>
 </body>
 </html>
