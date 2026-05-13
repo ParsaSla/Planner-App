@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-const pathname = 'authDB.json'
+const pathname = 'data/authDB.json';
 
 function appendDB(user) {
     const users = readDB();
