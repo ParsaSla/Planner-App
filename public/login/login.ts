@@ -1,15 +1,16 @@
-const feedback = document.getElementById("feedback") as HTMLElement | null;
 const toggleBtn = document.getElementById("toggleBtn") as HTMLElement | null;
 const submitBtn = document.getElementById("submitBtn") as HTMLInputElement | null;
 const confirimPasswordLabel = document.getElementById("confirmPasswordLabel") as HTMLElement | null;
 const confirmPasswordField = document.getElementById("confirmPassword") as HTMLInputElement | null;
 const authForm = document.getElementById("authForm") as HTMLFormElement | null;
+const confirmPasswordGroup = document.getElementById("confirmPasswordGroup") as HTMLElement | null;
 
-if (!feedback || !toggleBtn || !submitBtn || !confirimPasswordLabel || !confirmPasswordField || !authForm) {
+if (!feedback || !toggleBtn || !submitBtn || !confirimPasswordLabel || !confirmPasswordField || !authForm || !confirmPasswordGroup) {
     throw new Error("Missing required login form elements");
 }
 
-feedback.textContent = "running";
+feedback.textContent = "";
+feedback.classList.remove("show");
 
 let isRegistering = false;
 
@@ -19,14 +20,12 @@ toggleBtn.addEventListener("click", () => {
     if (isRegistering) {
         submitBtn.value = "Register";
         toggleBtn.textContent = "Already have an account? Login";
-        confirmPasswordField.style.display = "block";
-        confirimPasswordLabel.style.display = "block";
+        confirmPasswordGroup.classList.add("show");
         confirmPasswordField.required = true;
     } else {
         submitBtn.value = "Login";
         toggleBtn.textContent = "No account? Register";
-        confirmPasswordField.style.display = "none";
-        confirimPasswordLabel.style.display = "none";
+        confirmPasswordGroup.classList.remove("show");
         confirmPasswordField.required = false;
     }
 });
@@ -43,7 +42,8 @@ authForm.addEventListener("submit", async (event) => {
         delete data.confirmPassword;
     } else {
         if (data.password !== data.confirmPassword) {
-            feedback.style.color = "red";
+            feedback.classList.add("show", "error");
+            feedback.classList.remove("success");
             feedback.textContent = "Passwords do not match.";
             return;
         }
@@ -57,10 +57,18 @@ authForm.addEventListener("submit", async (event) => {
 
     const result = await response.json();
     if (result.success) {
-        feedback.style.color = "green";
+        feedback.classList.add("show", "success");
+        feedback.classList.remove("error");
+        feedback.textContent = isRegistering ? "Account created! Redirecting to login..." : "Login successful! Redirecting...";
+        // Redirect to the location specified by the server
+        if (result.redirect) {
+            setTimeout(() => {
+                window.location.href = result.redirect;
+            }, 1000);
+        }
     } else {
-        feedback.style.color = "red";
+        feedback.classList.add("show", "error");
+        feedback.classList.remove("success");
+        feedback.textContent = "Invalid username or password";
     }
-
-    feedback.textContent = result.success;
   });

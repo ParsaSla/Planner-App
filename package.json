@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "cookie-parser": "^1.4.7",
     "express": "^5.1.0"
   },
   "devDependencies": {
@@ -10,9 +11,9 @@
     "typescript": "^6.0.3"
   },
   "scripts": {
-  "dev": "tsx watch server.ts",
-  "watch:frontend": "tsc --watch",
-  "build": "tsc",
-  "start:all": "concurrently \"npm run dev\" \"npm run watch:frontend\""
-}
+    "dev": "tsx watch server.ts",
+    "watch:frontend": "tsc --watch",
+    "build": "tsc",
+    "start:all": "concurrently \"npm run dev\" \"npm run watch:frontend\""
+  }
 }

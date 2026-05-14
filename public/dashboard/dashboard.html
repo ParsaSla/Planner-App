@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Planner App</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="dashboard-header">
+            <div class="header-content">
+                <h1>Planner App</h1>
+                <p>Organize your tasks and manage your time efficiently</p>
+            </div>
+            <button id="logoutBtn" class="logout-btn" type="button">Logout</button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Create Task Section -->
+            <div class="create-task-section">
+                <h2>Create Task</h2>
+                <div id="feedback" class="feedback"></div>
+                <form id="createTaskForm">
+                    <div class="form-group">
+                        <label for="taskTitle">Task Title:</label>
+                        <input type="text" id="taskTitle" name="title" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="taskDate">Date:</label>
+                        <input type="date" id="taskDate" name="date" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="taskType">Type:</label>
+                        <select id="taskType" name="type" required>
+                            <option value="">Select a type</option>
+                            <option value="work">Work</option>
+                            <option value="personal">Personal</option>
+                            <option value="shopping">Shopping</option>
+                            <option value="health">Health</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="taskDescription">Description:</label>
+                        <textarea id="taskDescription" name="description" placeholder="Add task details..."></textarea>
+                    </div>
+
+                    <button type="submit" class="create-task-btn">Create Task</button>
+                </form>
+            </div>
+
+            <!-- Tasks Display Section -->
+            <div class="tasks-section">
+                <h2>Your Tasks</h2>
+                <div id="tasksList" class="tasks-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📝</div>
+                        <p>No tasks yet</p>
+                        <p style="font-size: 12px; color: #ccc;">Create your first task to get started</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/dist/public/dashboard/dashboard.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,21 @@
+{
+  "users": {
+    "b916ece4-258b-4cb1-9b02-7aab4371a585": {
+      "username": "parsa",
+      "passwordHash": "4886e53cb3c6ff6689939f0e24e487992dd830b7543ea8b26705c075509193dc311f0073d3b8ed51535fb68b98a65377c9e65c954b9b9d077e9c02eaef4a3751",
+      "salt": "31d7c8ff7d6b477241b4f2943ab35f9b",
+      "UID": "b916ece4-258b-4cb1-9b02-7aab4371a585",
+      "creation": "5/14/2026, 3:53:35 PM",
+      "data": {
+        "tasks": []
+      },
+      "lastLogin": "5/14/2026, 4:08:39 PM"
+    }
+  },
+  "sessions": {
+    "ef1960c3-5be3-44f2-991d-77c3f944ea26": {
+      "UID": "b916ece4-258b-4cb1-9b02-7aab4371a585",
+      "expires": "5/15/2026, 4:08:39 PM"
+    }
+  }
+}

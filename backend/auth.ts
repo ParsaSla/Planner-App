@@ -1,73 +1,96 @@
 import fs from 'fs';
+import crypto from 'crypto';
 
-import { User } from './types/user.types.js';
+import { User, DB } from './types/types';
+import AppError from './error/appError';
+import { ERRORS } from './error/errors';
+import { readDB, writeDB } from './dbManager';
 
-const pathname = 'data/authDB.json';
-
-function appendDB(user: User) {
-    const users = readDB();
-    users.push(user);
-    fs.writeFileSync(pathname, JSON.stringify(users, null, 2), 'utf8');
+function addUser(user: User): void {
+    const db = readDB();
+    db.users[user.UID] = user;
 }
 
-function readDB() {
-    const data = fs.readFileSync(pathname, 'utf8');
-    return JSON.parse(data);
-}
-
-function writeDB(users: User[]) {
-    fs.writeFileSync(pathname, JSON.stringify(users, null, 2), 'utf8');
-}
-
-export function register(username: string, password: string) {
+export function register(username: string, password: string): string {
     username = username.toLowerCase();
-    const users = readDB();
-    for (let user of users) {
-        if (user.username === username) {
-            return false;
-        }
+    const db: DB = readDB();
+
+    if (Object.values(db.users).some(user => user.username === username)) {
+        throw new AppError('User already exists', ERRORS.USER_ALREADY_EXISTS);
     }
+
     const user = createUser(username, password);
-    appendDB(user);
+    addUser(user);
     return user.UID;
 }
 
 function createUser(username: string, password: string): User {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+
     const user = {
         username: username,
-        password: password,
+        passwordHash: hash,
+        salt: salt,
         UID: generateUID(),
-        creation: new Date().toLocaleString()
+        creation: new Date().toLocaleString(),
+        data: {}
     };
     return user;
 }
 
 function generateUID() {
-    const users = readDB();
-    if (users.length == 0) {
-        return -1;
-    }
-    const lastUID = users.at(-1).UID;
-    return lastUID + 1;
+    return crypto.randomUUID();
 }
 
 export function login(username: string, password: string) {
     username = username.toLowerCase();
-    const users = readDB();
-    for (let user of users) {
-        if (user.username == username && user.password == password) {
+    const db: DB = readDB();
+    const user = Object.values(db.users).find(u => u.username === username);
+    if (user) {
+        const hash = crypto.pbkdf2Sync(password, user.salt, 1000, 64, 'sha512').toString('hex');
+        if (hash == user.passwordHash) {
             user.lastLogin = new Date().toLocaleString();
-            writeDB(users);
-            return user.UID;
+
+            const session = {
+                UID: user.UID,
+                expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleString() // Expires in 24 hours
+            };
+            const SID = crypto.randomUUID();
+            db.sessions[SID] = session;
+
+            return SID; // Return session ID on successful login
         }
-    }
-    return null;
+    } 
+    throw new AppError('Invalid credentials', ERRORS.INVALID_CREDENTIALS);
 }
 
-export function getUsername(UID: number) {
-    const users = readDB();
-    return users[UID].username;
+export function validateSession(SID: string): string {
+    const db: DB = readDB();
+    const session = db.sessions[SID];
+    if (session) {
+        const now = new Date();
+        const expires = new Date(session.expires);
+        if (now < expires) {
+            return session.UID; // Return UID if session is valid
+        } else {
+            delete db.sessions[SID]; // Remove expired session
+        }
+    }
+    throw new AppError('Invalid session', ERRORS.INVALID_CREDENTIALS);
 }
+
+export function deleteSession(SID: string) {
+    const db: DB = readDB();
+    if (db.sessions[SID]) {
+        delete db.sessions[SID];
+    }
+}
+
+// export function getUsername(UID: string) {
+//     const users = readDB();
+//     return users.find(user => user.UID === UID)?.username;
+// }
 
 // appendDB(user1);
 // appendDB(user2);

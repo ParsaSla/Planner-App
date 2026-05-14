@@ -3,22 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Planner App - Login</title>
+    <link rel="stylesheet" href="login.css">
 </head>
 <body>
-    <h1>Planner App</h1>
-    <p>This is a simple planner application.</p>   
-    <form id="authForm">
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required><br><br>
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required><br><br>
-        <label for="confirmPassword" id="confirmPasswordLabel" style="display: none;">Confirm Password:</label>
-        <input type="password" id="confirmPassword" name="confirmPassword" style="display: none;"><br><br>
-        <input type="submit" value="Login" id="submitBtn">
-    </form>
-    <button id="toggleBtn" type="button">No account? Register</button>
-    <p id="feedback" style="color: red;">hello</p>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>Planner App</h1>
+            <p>Organize your tasks and manage your time efficiently</p>
+        </div>
+        <div class="login-content">
+            <form id="authForm" method="post">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+
+                <div class="confirm-password-group form-group" id="confirmPasswordGroup">
+                    <label for="confirmPassword" id="confirmPasswordLabel">Confirm Password:</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword">
+                </div>
+
+                <input type="submit" value="Login" id="submitBtn">
+            </form>
+
+            <button id="toggleBtn" class="toggle-btn" type="button">No account? Register</button>
+
+            <div id="feedback" class="feedback"></div>
+        </div>
+    </div>
 
     <script type="module" src="/dist/public/login/login.js"></script>
 </body>
