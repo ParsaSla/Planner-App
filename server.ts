@@ -4,7 +4,7 @@ import {deleteSession, validateSession, login, register} from './backend/auth';
 import { initializeDB } from './backend/dbManager';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { createTask, getTasks, deleteTask } from './backend/dashboard';
+import { getTasks, deleteTask, createRecurringTask, createOneTimeTask, createTask } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -113,11 +113,12 @@ app.get("/dashboard/", (req, res) => {
 /////////////////////////////
 
 app.post("/api/tasks", (req, res) => {
-  const { title, description } = req.body;
+  const { type, title, description, date, days, time } = req.body;
   try {
     const sessionID = retrieveSessionID(req.headers.cookie);
     const UID = validateSession(sessionID);
-    createTask(title, UID, description);
+    createTask(type, title, UID, date, days, time, description);
+
     res.status(200).json({ success: true });
   } catch (e) {
     const error = e as AppError;

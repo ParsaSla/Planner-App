@@ -32,20 +32,54 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="taskDate">Date:</label>
-                        <input type="date" id="taskDate" name="date" required>
+                        <label>Task Type:</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" id="taskTypeOneTime" name="taskType" value="ONE_TIME" required>
+                                <span class="radio-custom"></span>
+                                One-Time
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" id="taskTypeRecurring" name="taskType" value="RECURRING" required>
+                                <span class="radio-custom"></span>
+                                Recurring
+                            </label>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="taskType">Type:</label>
-                        <select id="taskType" name="type" required>
-                            <option value="">Select a type</option>
-                            <option value="work">Work</option>
-                            <option value="personal">Personal</option>
-                            <option value="shopping">Shopping</option>
-                            <option value="health">Health</option>
-                            <option value="other">Other</option>
-                        </select>
+                    <div class="form-group" id="oneTimeGroup">
+                        <label for="taskDate">Date:</label>
+                        <input type="date" id="taskDate" name="date">
+                    </div>
+
+                    <div class="form-group" id="recurringDaysGroup" style="display: none;">
+                        <label>Days of Week:</label>
+                        <div class="days-selector">
+                            <label class="day-checkbox"><input type="checkbox" name="days" value="MONDAY"> Monday</label>
+                            <label class="day-checkbox"><input type="checkbox" name="days" value="TUESDAY"> Tuesday</label>
+                            <label class="day-checkbox"><input type="checkbox" name="days" value="WEDNESDAY"> Wednesday</label>
+                            <label class="day-checkbox"><input type="checkbox" name="days" value="THURSDAY"> Thursday</label>
+                            <label class="day-checkbox"><input type="checkbox" name="days" value="FRIDAY"> Friday</label>
+                            <label class="day-checkbox"><input type="checkbox" name="days" value="SATURDAY"> Saturday</label>
+                            <label class="day-checkbox"><input type="checkbox" name="days" value="SUNDAY"> Sunday</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="recurringTimeGroup" style="display: none;">
+                        <label>Time:</label>
+                        <div class="time-selector">
+                            <div class="time-input-group">
+                                <input type="number" id="taskHour" name="hour" min="1" max="12" value="1" placeholder="Hour">
+                                <span class="time-colon">:</span>
+                                <input type="number" id="taskMinute" name="minute" min="0" max="59" value="30" placeholder="00">
+                            </div>
+                            <div class="ampm-toggle">
+                                <input type="radio" id="amToggle" name="ampm" value="AM">
+                                <label for="amToggle">AM</label>
+                                <input type="radio" id="pmToggle" name="ampm" value="PM" checked>
+                                <label for="pmToggle">PM</label>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">

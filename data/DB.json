@@ -13,10 +13,24 @@
             "title": "h",
             "description": "hfgyg",
             "completed": false
+          },
+          {
+            "id": "ff68237d-9985-48be-9cbd-6308ed36309d",
+            "title": "lunch",
+            "type": "RECURRING",
+            "days": [
+              "TUESDAY",
+              "THURSDAY",
+              "SATURDAY"
+            ],
+            "time": {
+              "hour": 10,
+              "minute": 1
+            }
           }
         ]
       },
-      "lastLogin": "5/14/2026, 5:51:40 PM"
+      "lastLogin": "5/18/2026, 1:26:01 PM"
     },
     "824f9702-3d11-41d5-abed-707e1e5842c9": {
       "username": "shahram",
@@ -26,12 +40,25 @@
       "creation": "5/14/2026, 5:48:26 PM",
       "data": {},
       "lastLogin": "5/14/2026, 5:51:10 PM"
+    },
+    "cf6d0f67-3545-45c2-81da-3b601eb94451": {
+      "username": "parsas",
+      "passwordHash": "fd2361cf083f3a28ff22a8b4da656ba72d3995df3b3de7d0366a3d0fd5c74eac128cc88cbd4fb803520909b0fa62f10f36ecf423e5045cfc9cc2b3002caf5edb",
+      "salt": "58f53c4dc77ab4c5e12713a182c253ec",
+      "UID": "cf6d0f67-3545-45c2-81da-3b601eb94451",
+      "creation": "5/18/2026, 1:19:15 PM",
+      "data": {},
+      "lastLogin": "5/18/2026, 1:19:21 PM"
     }
   },
   "sessions": {
     "7dd8758e-267c-43a0-8cc4-988e7f0c3272": {
       "UID": "b916ece4-258b-4cb1-9b02-7aab4371a585",
       "expires": "5/15/2026, 5:51:40 PM"
+    },
+    "ef9b568f-2ff9-4376-973b-f3cf2f3abe37": {
+      "UID": "b916ece4-258b-4cb1-9b02-7aab4371a585",
+      "expires": "5/19/2026, 1:26:01 PM"
     }
   }
 }

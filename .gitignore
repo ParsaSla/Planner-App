@@ -1,4 +1,6 @@
-/data
+data/
+
+.json
 
 # Logs
 logs
