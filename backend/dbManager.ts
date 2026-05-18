@@ -11,6 +11,11 @@ let cachedDB: DB | null = null;
 let intervalID: NodeJS.Timeout | null = null;
 
 export function initializeDB(): DB {
+    // Ensure the data directory exists
+    if (!fs.existsSync('data')) {
+        fs.mkdirSync('data', { recursive: true });
+    }
+
     // 1. Check if the file exists
     if (!fs.existsSync(DB_PATH)) {
         console.log("DB not found. Initializing new database...");
@@ -22,6 +27,7 @@ export function initializeDB(): DB {
         };
 
         // 3. Write it to the file
+        
         fs.writeFileSync(DB_PATH, JSON.stringify(initialData, null, 2));
         
         // 4. Initialize the cache
