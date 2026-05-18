@@ -37,7 +37,24 @@ export const DAYS = {
 };
 export type DAY = typeof DAYS[keyof typeof DAYS];
 
+export function assertDaysType(days: Array<DAY>): void {
+  for (const day of days) {
+    if (!Object.values(DAYS).includes(day)) {
+      throw new Error('Invalid day type');
+    }
+  }
+}
+
 export interface TimeOfDay {
     hour: number; // 0-23
     minute: number; // 0-59
+}
+
+export function assertTimeOfDayType(time: TimeOfDay): void {
+    if (time.hour < 0 || time.hour > 23) {
+        throw new Error('Invalid hour value');
+    }
+    if (time.minute < 0 || time.minute > 59) {
+        throw new Error('Invalid minute value');
+    }
 }

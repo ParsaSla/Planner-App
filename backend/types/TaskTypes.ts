@@ -22,3 +22,9 @@ export interface RecurringTask extends Task {
     days: Array<DAY>;
     time: TimeOfDay;
 }
+
+export function assertTaskType(value: any): void {
+  if (!Object.values(TASKS).includes(value)) {
+    throw new Error('Invalid task type');
+  }
+}
