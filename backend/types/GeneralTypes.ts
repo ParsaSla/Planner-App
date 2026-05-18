@@ -1,3 +1,5 @@
+import { Task } from './TaskTypes';
+
 export interface User {
     username: string;
     passwordHash: string;
@@ -14,13 +16,6 @@ export interface UserData {
     preferences?: Record<string, any>;
 }
 
-export interface Task {
-    id: string;
-    title: string;
-    description?: string;
-    completed: boolean;
-}
-
 export interface Session {
     UID: string;
     expires: string;
@@ -29,4 +24,20 @@ export interface Session {
 export interface DB {
     users: Record<string, User>;
     sessions: Record<string, Session>;
+}
+
+export const DAYS = {
+    SATURDAY: 'SATURDAY',
+    SUNDAY: 'SUNDAY',
+    MONDAY: 'MONDAY',
+    TUESDAY: 'TUESDAY',
+    WEDNESDAY: 'WEDNESDAY',
+    THURSDAY: 'THURSDAY',
+    FRIDAY: 'FRIDAY',
+};
+export type DAY = typeof DAYS[keyof typeof DAYS];
+
+export interface TimeOfDay {
+    hour: number; // 0-23
+    minute: number; // 0-59
 }
