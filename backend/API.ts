@@ -41,6 +41,14 @@ export function createRecurringTask(title: string, UID: string, days: Array<DAY>
     user.data.tasks.push(newTask);
 }
 
+export function createTask(type: string, title: string, UID: string, date: Date, days: Array<DAY>, time: TimeOfDay, description?: string): void {
+    if (type === TASKS.ONE_TIME) {
+        createOneTimeTask(title, UID, date, description);
+    } else if (type === TASKS.RECURRING) {
+        createRecurringTask(title, UID, days, time, description);
+    }
+}
+
 export function getTasks(UID: string): Task[] {
     const user = getUserFromUID(UID);
     return user.data.tasks || [];
