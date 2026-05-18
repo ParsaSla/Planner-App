@@ -7,10 +7,19 @@ const taskTypeRecurring = document.getElementById("taskTypeRecurring") as HTMLIn
 const oneTimeGroup = document.getElementById("oneTimeGroup") as HTMLElement | null;
 const recurringDaysGroup = document.getElementById("recurringDaysGroup") as HTMLElement | null;
 const recurringTimeGroup = document.getElementById("recurringTimeGroup") as HTMLElement | null;
+const calendarElement = document.getElementById("calendar") as HTMLElement | null;
+const currentMonthElement = document.getElementById("currentMonth") as HTMLElement | null;
+const prevMonthBtn = document.getElementById("prevMonth") as HTMLButtonElement | null;
+const nextMonthBtn = document.getElementById("nextMonth") as HTMLButtonElement | null;
+const calendarEventsElement = document.getElementById("calendarEvents") as HTMLElement | null;
 
 if (!logoutBtn || !createTaskForm || !tasksList || !feedback || !taskTypeOneTime || !taskTypeRecurring) {
     throw new Error("Missing required dashboard elements");
 }
+
+// Calendar state
+let currentDate = new Date();
+let allTasks: any[] = [];
 
 // Handle task type selection (ONE_TIME vs RECURRING)
 function updateTaskTypeDisplay() {
@@ -108,8 +117,8 @@ createTaskForm.addEventListener("submit", async (event) => {
             showFeedback("Task created successfully!", "success");
             createTaskForm.reset();
             // Reset the form display
-            if (taskTypeOneTime) taskTypeOneTime.checked = false;
-            if (taskTypeRecurring) taskTypeRecurring.checked = false;
+            taskTypeOneTime.checked = true;
+            taskTypeRecurring.checked = false;
             updateTaskTypeDisplay();
             if (oneTimeGroup) oneTimeGroup.style.display = "block";
             if (recurringDaysGroup) recurringDaysGroup.style.display = "none";
@@ -133,6 +142,7 @@ async function loadTasks() {
         const result = await response.json();
         if (result.success) {
             displayTasks(result.tasks || []);
+            generateCalendar(result.tasks || []);
         }
     } catch (error) {
         console.error("Error loading tasks:", error);
@@ -273,5 +283,143 @@ function formatDate(dateString: string | undefined | null): string {
     }
 }
 
+// Calendar functions
+function generateCalendar(tasks: any[]) {
+    if (!calendarElement || !currentMonthElement) return;
+    
+    allTasks = tasks;
+    
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    // Update header
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+    currentMonthElement.textContent = `${monthNames[month]} ${year}`;
+    
+    // Get first day of month and number of days
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    
+    let html = '<div class="calendar-weekdays">';
+    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    weekdays.forEach(day => {
+        html += `<div class="calendar-weekday">${day}</div>`;
+    });
+    html += '</div><div class="calendar-days">';
+    
+    // Previous month's days
+    for (let i = firstDay - 1; i >= 0; i--) {
+        const day = daysInPrevMonth - i;
+        html += `<div class="calendar-day other-month">${day}</div>`;
+    }
+    
+    // Current month's days
+    const today = new Date();
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateString = date.toISOString().split('T')[0];
+        
+        // Check if this day has events
+        const hasEvent = tasks.some(task => {
+            if (task.type === 'ONE_TIME') {
+                const taskDate = new Date(task.date).toISOString().split('T')[0];
+                return taskDate === dateString;
+            } else if (task.type === 'RECURRING') {
+                const dayOfWeek = date.getDay();
+                const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+                return task.days && task.days.includes(dayNames[dayOfWeek]);
+            }
+            return false;
+        });
+        
+        const isToday = date.toDateString() === today.toDateString();
+        const classes = ['calendar-day'];
+        if (hasEvent) classes.push('has-event');
+        if (isToday) classes.push('today');
+        
+        html += `<div class="${classes.join(' ')}" data-date="${dateString}">${day}</div>`;
+    }
+    
+    // Next month's days
+    const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+    for (let day = 1; day <= totalCells - firstDay - daysInMonth; day++) {
+        html += `<div class="calendar-day other-month">${day}</div>`;
+    }
+    
+    html += '</div>';
+    calendarElement.innerHTML = html;
+    
+    // Add click event listeners to calendar days
+    const calendarDays = calendarElement.querySelectorAll('.calendar-day:not(.other-month)');
+    calendarDays.forEach(dayElement => {
+        dayElement.addEventListener('click', () => {
+            const dateString = (dayElement as HTMLElement).getAttribute('data-date');
+            if (dateString) {
+                updateCalendarEvents(dateString, tasks);
+            }
+        });
+    });
+    
+    // Show events for today on initial load
+    const todayString = today.toISOString().split('T')[0];
+    updateCalendarEvents(todayString, tasks);
+}
+
+function updateCalendarEvents(dateString: string, tasks: any[]) {
+    if (!calendarEventsElement) return;
+    
+    const selectedDate = new Date(dateString);
+    const dayOfWeek = selectedDate.getDay();
+    const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    
+    // Get events for selected date
+    const dayEvents = tasks.filter(task => {
+        if (task.type === 'ONE_TIME') {
+            const taskDate = new Date(task.date).toISOString().split('T')[0];
+            return taskDate === dateString;
+        } else if (task.type === 'RECURRING') {
+            return task.days && task.days.includes(dayNames[dayOfWeek]);
+        }
+        return false;
+    });
+    
+    let html = `<h4>${selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</h4>`;
+    
+    if (dayEvents.length === 0) {
+        html += '<p style="color: #999; font-size: 12px;">No events scheduled</p>';
+    } else {
+        dayEvents.forEach(event => {
+            const eventClass = event.type === 'RECURRING' ? 'recurring' : '';
+            const timeStr = event.type === 'RECURRING' && event.time 
+                ? `${event.time.hour}:${String(event.time.minute).padStart(2, '0')}`
+                : '';
+            html += `<div class="calendar-event-item ${eventClass}">
+                <strong>${escapeHtml(event.title)}</strong>
+                ${timeStr ? `<br><small>${timeStr}</small>` : ''}
+            </div>`;
+        });
+    }
+    
+    calendarEventsElement.innerHTML = html;
+}
+
+// Calendar navigation
+if (prevMonthBtn) {
+    prevMonthBtn.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        generateCalendar(allTasks);
+    });
+}
+
+if (nextMonthBtn) {
+    nextMonthBtn.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        generateCalendar(allTasks);
+    });
+}
+
 // Load tasks on page load
 loadTasks();
+updateTaskTypeDisplay();

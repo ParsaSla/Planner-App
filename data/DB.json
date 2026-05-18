@@ -7,28 +7,7 @@
       "UID": "b916ece4-258b-4cb1-9b02-7aab4371a585",
       "creation": "5/14/2026, 3:53:35 PM",
       "data": {
-        "tasks": [
-          {
-            "id": "fa271d24-d335-470a-b26c-3412e49bfe32",
-            "title": "h",
-            "description": "hfgyg",
-            "completed": false
-          },
-          {
-            "id": "ff68237d-9985-48be-9cbd-6308ed36309d",
-            "title": "lunch",
-            "type": "RECURRING",
-            "days": [
-              "TUESDAY",
-              "THURSDAY",
-              "SATURDAY"
-            ],
-            "time": {
-              "hour": 10,
-              "minute": 1
-            }
-          }
-        ]
+        "tasks": []
       },
       "lastLogin": "5/18/2026, 1:26:01 PM"
     },
