@@ -1,7 +1,6 @@
 import fs from 'fs';
-import crypto from 'crypto';
 
-import { DB } from './types/types';
+import { DB } from './types/GeneralTypes';
 import AppError from './error/appError';
 import { ERRORS } from './error/errors';
 
