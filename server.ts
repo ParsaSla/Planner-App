@@ -4,7 +4,7 @@ import {deleteSession, validateSession, login, register} from './backend/auth';
 import { initializeDB } from './backend/dbManager';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { getTasks, deleteTask, createRecurringTask, createOneTimeTask, createTask } from './backend/API';
+import { getTasks, deleteTask, updateTaskCompletion, createTask } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -144,6 +144,25 @@ app.delete("/api/tasks/:id", (req, res) => {
     const sessionID = retrieveSessionID(req.headers.cookie);
     const UID = validateSession(sessionID);
     deleteTask(UID, taskId);
+    res.status(200).json({ success: true });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+app.patch("/api/tasks/:id", (req, res) => {
+  const taskId = req.params.id;
+  const { completed } = req.body;
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+
+    if (typeof completed !== 'boolean') {
+      throw new AppError('Invalid completed value', ERRORS.INVALID_TASK_DATA);
+    }
+
+    updateTaskCompletion(UID, taskId, completed);
     res.status(200).json({ success: true });
   } catch (e) {
     const error = e as AppError;

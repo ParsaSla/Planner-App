@@ -17,6 +17,37 @@ if (!logoutBtn || !createTaskForm || !tasksList || !feedback || !taskTypeOneTime
     throw new Error("Missing required dashboard elements");
 }
 
+if (tasksList) {
+    tasksList.addEventListener('change', async (event) => {
+        const target = event.target as HTMLElement;
+        if (!target.matches('.task-complete-checkbox')) return;
+
+        const checkbox = target as HTMLInputElement;
+        const taskId = checkbox.getAttribute('data-task-id');
+        if (!taskId) return;
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completed: checkbox.checked }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showFeedback('Task updated successfully', 'success');
+                loadTasks();
+            } else {
+                showFeedback(result.error || 'Failed to update task', 'error');
+                loadTasks();
+            }
+        } catch (error) {
+            showFeedback('Error updating task', 'error');
+            loadTasks();
+        }
+    });
+}
+
 // Calendar state
 let currentDate = new Date();
 let allTasks: any[] = [];
@@ -196,8 +227,16 @@ function displayTasks(tasks: any[]) {
                 `;
             }
 
+            const taskCardClass = task.completed ? 'task-card completed' : 'task-card';
+            const completionToggle = task.type === 'ONE_TIME' ? `
+                <label class="task-complete-toggle">
+                    <input type="checkbox" class="task-complete-checkbox" data-task-id="${escapeHtml(task.id)}" ${task.completed ? 'checked' : ''}>
+                    <span>${task.completed ? 'Completed' : 'Mark complete'}</span>
+                </label>
+            ` : '';
+
             return `
-                <div class="task-card">
+                <div class="${taskCardClass}">
                     <div class="task-header">
                         <div class="task-title">${escapeHtml(task.title)}</div>
                         <span class="task-type ${task.type === 'ONE_TIME' ? 'one-time' : 'recurring'}">${escapeHtml(task.type)}</span>
@@ -205,6 +244,7 @@ function displayTasks(tasks: any[]) {
                     ${taskDetailsHtml}
                     ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
                     <div class="task-actions">
+                        ${completionToggle}
                         <button class="task-btn task-btn-delete" data-task-id="${escapeHtml(task.id)}">Delete</button>
                     </div>
                 </div>

@@ -191,9 +191,41 @@ body {
     transition: all 0.3s ease;
 }
 
+.task-card.completed {
+    background: #e2e8f0;
+    border-left-color: #94a3b8;
+    opacity: 0.85;
+}
+
+.task-card.completed .task-title,
+.task-card.completed .task-description,
+.task-card.completed .task-date,
+.task-card.completed .task-recurring-info,
+.task-card.completed .task-status {
+    color: #64748b;
+}
+
+.task-card.completed .task-title {
+    text-decoration: line-through;
+}
+
 .task-card:hover {
     box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
     transform: translateX(5px);
+}
+
+.task-complete-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: #333;
+}
+
+.task-complete-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
 }
 
 .task-header {
