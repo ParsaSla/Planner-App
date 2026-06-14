@@ -1,44 +1,58 @@
-import fs from 'fs';
 import crypto from 'crypto';
 
-import { User, DB, TimeOfDay, DAY, assertDaysType, assertTimeOfDayType } from './types/GeneralTypes';
-import { assertTaskType, OneTimeTask, RecurringTask, Task, TASKS, TaskType } from './types/TaskTypes';
+import { TimeOfDay, DAY, assertDaysType, assertTimeOfDayType } from './types/GeneralTypes';
+import { assertTaskType, Task, TASKS, TaskType } from './types/TaskTypes';
 import AppError from './error/appError';
 import { ERRORS } from './error/errors';
-import { convertToDateObj, getUserFromUID } from './util';
+import { convertToDateObj } from './util';
+import {
+    createOneTimeTaskRow,
+    createRecurringTaskRow,
+    getOneTimeTasksByUID,
+    getRecurringTasksByUID,
+    deleteTaskById,
+    updateOneTimeTaskCompletion,
+    getUserByUID,
+} from './dbManager';
 
 export function createOneTimeTask(title: string, UID: string, date: Date, description?: string): void {
-    const user = getUserFromUID(UID);
-    const newTask: OneTimeTask = {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    createOneTimeTaskRow({
         id: crypto.randomUUID(),
+        uid: UID,
         title,
         description,
         type: TASKS.ONE_TIME,
-        date,
-        completed: false
-    };
-
-    if (!user.data.tasks) {
-        user.data.tasks = [];
-    }
-    user.data.tasks.push(newTask);
+        date: date.toISOString(),
+        completed: 0,
+        created_at: new Date().toISOString(),
+    });
 }
 
 export function createRecurringTask(title: string, UID: string, days: Array<DAY>, time: TimeOfDay, description?: string): void {
-    const user = getUserFromUID(UID);
-    const newTask: RecurringTask = {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    assertDaysType(days);
+    assertTimeOfDayType(time);
+
+    createRecurringTaskRow({
         id: crypto.randomUUID(),
+        uid: UID,
         title,
         description,
-        type: TASKS.RECURRING,
-        days,
-        time
-    };
-
-    if (!user.data.tasks) {
-        user.data.tasks = [];
-    }
-    user.data.tasks.push(newTask);
+        days_of_week: JSON.stringify(days),
+        time_hour: time.hour,
+        time_minute: time.minute,
+        active: 1,
+        created_at: new Date().toISOString(),
+    });
 }
 
 export function createTask(type: TaskType, title: string, UID: string, date: string, days: Array<DAY>, time: TimeOfDay, description?: string): void {
@@ -55,14 +69,34 @@ export function createTask(type: TaskType, title: string, UID: string, date: str
 }
 
 export function getTasks(UID: string): Task[] {
-    const user = getUserFromUID(UID);
-    return user.data.tasks || [];
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    return [...getOneTimeTasksByUID(UID), ...getRecurringTasksByUID(UID)];
 }
 
 export function deleteTask(UID: string, taskId: string): void {
-    const user = getUserFromUID(UID);
-    if (!user.data.tasks) {
-        throw new AppError('No tasks found for user', ERRORS.TASK_NOT_FOUND);
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
     }
-    user.data.tasks = user.data.tasks.filter(task => task.id !== taskId);
+
+    const deletedCount = deleteTaskById(UID, taskId);
+    if (deletedCount === 0) {
+        throw new AppError('Task not found', ERRORS.TASK_NOT_FOUND);
+    }
+}
+
+export function updateTaskCompletion(UID: string, taskId: string, completed: boolean): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    const updatedCount = updateOneTimeTaskCompletion(UID, taskId, completed ? 1 : 0);
+    if (updatedCount === 0) {
+        throw new AppError('Task not found', ERRORS.TASK_NOT_FOUND);
+    }
 }
