@@ -12,6 +12,8 @@ import {
     getRecurringTasksByUID,
     deleteTaskById,
     updateOneTimeTaskCompletion,
+    updateOneTimeTaskRow,
+    updateRecurringTaskRow,
     getUserByUID,
 } from './dbManager';
 
@@ -96,6 +98,59 @@ export function updateTaskCompletion(UID: string, taskId: string, completed: boo
     }
 
     const updatedCount = updateOneTimeTaskCompletion(UID, taskId, completed ? 1 : 0);
+    if (updatedCount === 0) {
+        throw new AppError('Task not found', ERRORS.TASK_NOT_FOUND);
+    }
+}
+
+export function updateTask(
+    UID: string,
+    taskId: string,
+    type: TaskType,
+    title: string,
+    description: string | undefined,
+    date?: string,
+    days?: Array<DAY>,
+    time?: TimeOfDay
+): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    assertTaskType(type);
+    if (!title || !title.trim()) {
+        throw new AppError('Task title is required', ERRORS.INVALID_TASK_DATA);
+    }
+
+    let updatedCount = 0;
+
+    if (type === TASKS.ONE_TIME) {
+        if (!date) {
+            throw new AppError('Date is required for one-time tasks', ERRORS.INVALID_TASK_DATA);
+        }
+        const dateObj = convertToDateObj(date);
+        updatedCount = updateOneTimeTaskRow(UID, taskId, title, description, dateObj.toISOString());
+    } else {
+        if (!days || days.length === 0) {
+            throw new AppError('At least one day is required for recurring tasks', ERRORS.INVALID_TASK_DATA);
+        }
+        if (!time) {
+            throw new AppError('Time is required for recurring tasks', ERRORS.INVALID_TASK_DATA);
+        }
+        assertDaysType(days);
+        assertTimeOfDayType(time);
+        updatedCount = updateRecurringTaskRow(
+            UID,
+            taskId,
+            title,
+            description,
+            JSON.stringify(days),
+            time.hour,
+            time.minute
+        );
+    }
+
     if (updatedCount === 0) {
         throw new AppError('Task not found', ERRORS.TASK_NOT_FOUND);
     }

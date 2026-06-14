@@ -7,15 +7,91 @@ const taskTypeRecurring = document.getElementById("taskTypeRecurring") as HTMLIn
 const oneTimeGroup = document.getElementById("oneTimeGroup") as HTMLElement | null;
 const recurringDaysGroup = document.getElementById("recurringDaysGroup") as HTMLElement | null;
 const recurringTimeGroup = document.getElementById("recurringTimeGroup") as HTMLElement | null;
+const taskIdInput = document.getElementById("taskId") as HTMLInputElement | null;
+const cancelEditBtn = document.getElementById("cancelEditBtn") as HTMLButtonElement | null;
 const calendarElement = document.getElementById("calendar") as HTMLElement | null;
 const currentMonthElement = document.getElementById("currentMonth") as HTMLElement | null;
 const prevMonthBtn = document.getElementById("prevMonth") as HTMLButtonElement | null;
 const nextMonthBtn = document.getElementById("nextMonth") as HTMLButtonElement | null;
 const calendarEventsElement = document.getElementById("calendarEvents") as HTMLElement | null;
 
-if (!logoutBtn || !createTaskForm || !tasksList || !feedback || !taskTypeOneTime || !taskTypeRecurring) {
+if (!logoutBtn || !createTaskForm || !tasksList || !feedback || !taskTypeOneTime || !taskTypeRecurring || !taskIdInput || !cancelEditBtn) {
     throw new Error("Missing required dashboard elements");
 }
+
+let editingTaskId: string | null = null;
+let currentDate = new Date();
+let allTasks: any[] = [];
+
+function resetTaskForm() {
+    createTaskForm!.reset();
+    editingTaskId = null;
+    if (taskIdInput) taskIdInput.value = '';
+    if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+    const submitButton = createTaskForm!.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+    if (submitButton) submitButton.textContent = 'Create Task';
+    taskTypeOneTime!.checked = true;
+    taskTypeRecurring!.checked = false;
+    updateTaskTypeDisplay();
+}
+
+function populateTaskForm(task: any) {
+    editingTaskId = task.id;
+    if (taskIdInput) taskIdInput.value = task.id;
+
+    const submitButton = createTaskForm!.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+    if (submitButton) submitButton.textContent = 'Save Changes';
+    if (cancelEditBtn) cancelEditBtn.style.display = 'inline-block';
+
+    const titleInput = document.getElementById('taskTitle') as HTMLInputElement | null;
+    const descriptionInput = document.getElementById('taskDescription') as HTMLTextAreaElement | null;
+    const dateInput = document.getElementById('taskDate') as HTMLInputElement | null;
+    const hourInput = document.getElementById('taskHour') as HTMLInputElement | null;
+    const minuteInput = document.getElementById('taskMinute') as HTMLInputElement | null;
+    const ampmInputs = Array.from(document.querySelectorAll('input[name="ampm"]')) as HTMLInputElement[];
+    const dayCheckboxes = Array.from(document.querySelectorAll('input[name="days"]')) as HTMLInputElement[];
+
+    if (titleInput) titleInput.value = task.title || '';
+    if (descriptionInput) descriptionInput.value = task.description || '';
+
+    if (task.type === 'ONE_TIME') {
+        taskTypeOneTime!.checked = true;
+        taskTypeRecurring!.checked = false;
+        updateTaskTypeDisplay();
+        if (dateInput) {
+            const dateValue = task.date ? new Date(task.date).toISOString().split('T')[0] : '';
+            dateInput.value = dateValue;
+        }
+    } else {
+        taskTypeOneTime!.checked = false;
+        taskTypeRecurring!.checked = true;
+        updateTaskTypeDisplay();
+        if (dayCheckboxes) {
+            dayCheckboxes.forEach(checkbox => {
+                checkbox.checked = task.days ? task.days.includes(checkbox.value) : false;
+            });
+        }
+        if (task.time && hourInput && minuteInput && ampmInputs.length > 0) {
+            let hour24 = task.time.hour;
+            let ampm = 'AM';
+            if (hour24 >= 12) {
+                ampm = 'PM';
+                if (hour24 > 12) hour24 -= 12;
+            } else if (hour24 === 0) {
+                hour24 = 12;
+            }
+            hourInput.value = String(hour24);
+            minuteInput.value = String(task.time.minute ?? 0).padStart(2, '0');
+            ampmInputs.forEach(input => {
+                input.checked = input.value === ampm;
+            });
+        }
+    }
+}
+
+cancelEditBtn.addEventListener('click', () => {
+    resetTaskForm();
+});
 
 if (tasksList) {
     tasksList.addEventListener('change', async (event) => {
@@ -46,21 +122,34 @@ if (tasksList) {
             loadTasks();
         }
     });
-}
 
-// Calendar state
-let currentDate = new Date();
-let allTasks: any[] = [];
+        tasksList.addEventListener('click', async (event) => {
+            const button = (event.target as HTMLElement).closest('.task-btn-edit') as HTMLButtonElement | null;
+            if (!button) return;
+            event.preventDefault();
+            const taskId = button.getAttribute('data-task-id');
+            if (!taskId) return;
+
+            const tasks = allTasks || [];
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) {
+                showFeedback('Task not found in list', 'error');
+                return;
+            }
+
+            populateTaskForm(task);
+        });
+    }
 
 // Handle task type selection (ONE_TIME vs RECURRING)
 function updateTaskTypeDisplay() {
-    if (taskTypeOneTime && taskTypeOneTime.checked) {
+    if (taskTypeOneTime!.checked) {
         if (oneTimeGroup) oneTimeGroup.style.display = "block";
         if (recurringDaysGroup) recurringDaysGroup.style.display = "none";
         if (recurringTimeGroup) recurringTimeGroup.style.display = "none";
         const dateInput = document.getElementById("taskDate") as HTMLInputElement | null;
         if (dateInput) dateInput.required = true;
-    } else if (taskTypeRecurring && taskTypeRecurring.checked) {
+    } else if (taskTypeRecurring!.checked) {
         if (oneTimeGroup) oneTimeGroup.style.display = "none";
         if (recurringDaysGroup) recurringDaysGroup.style.display = "block";
         if (recurringTimeGroup) recurringTimeGroup.style.display = "block";
@@ -92,6 +181,7 @@ createTaskForm.addEventListener("submit", async (event) => {
     const taskType = formData.get("taskType") as string;
     const title = formData.get("title") as string;
     const description = formData.get("description") as string;
+    const taskId = taskIdInput ? taskIdInput.value : null;
 
     let data: any = {
         type: taskType,
@@ -137,29 +227,24 @@ createTaskForm.addEventListener("submit", async (event) => {
     }
 
     try {
-        const response = await fetch("/api/tasks", {
-            method: "POST",
+        const method = taskId ? 'PUT' : 'POST';
+        const url = taskId ? `/api/tasks/${encodeURIComponent(taskId)}` : '/api/tasks';
+        const response = await fetch(url, {
+            method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
         });
 
         const result = await response.json();
         if (result.success) {
-            showFeedback("Task created successfully!", "success");
-            createTaskForm.reset();
-            // Reset the form display
-            taskTypeOneTime.checked = true;
-            taskTypeRecurring.checked = false;
-            updateTaskTypeDisplay();
-            if (oneTimeGroup) oneTimeGroup.style.display = "block";
-            if (recurringDaysGroup) recurringDaysGroup.style.display = "none";
-            if (recurringTimeGroup) recurringTimeGroup.style.display = "none";
+            showFeedback(taskId ? "Task updated successfully!" : "Task created successfully!", "success");
+            resetTaskForm();
             loadTasks();
         } else {
-            showFeedback(result.message || "Failed to create task", "error");
+            showFeedback(result.message || (taskId ? "Failed to update task" : "Failed to create task"), "error");
         }
     } catch (error) {
-        showFeedback("Error creating task. Please try again.", "error");
+        showFeedback(taskId ? "Error updating task. Please try again." : "Error creating task. Please try again.", "error");
     }
 });
 
@@ -245,6 +330,7 @@ function displayTasks(tasks: any[]) {
                     ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
                     <div class="task-actions">
                         ${completionToggle}
+                        <button class="task-btn task-btn-edit" data-task-id="${escapeHtml(task.id)}">Edit</button>
                         <button class="task-btn task-btn-delete" data-task-id="${escapeHtml(task.id)}">Delete</button>
                     </div>
                 </div>

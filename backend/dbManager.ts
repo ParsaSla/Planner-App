@@ -246,3 +246,57 @@ export function updateOneTimeTaskCompletion(uid: string, taskId: string, complet
 
     return result.changes;
 }
+
+export function updateOneTimeTaskRow(uid: string, taskId: string, title: string, description: string | undefined, date: string): number {
+    const db = getSQLiteDB();
+    const result = db.prepare(
+        `UPDATE tasks
+         SET title = @title,
+             description = @description,
+             date = @date,
+             updated_at = @updated_at
+         WHERE uid = @uid AND id = @id`
+    ).run({
+        uid,
+        id: taskId,
+        title,
+        description: description ?? null,
+        date,
+        updated_at: new Date().toISOString(),
+    });
+
+    return result.changes;
+}
+
+export function updateRecurringTaskRow(
+    uid: string,
+    taskId: string,
+    title: string,
+    description: string | undefined,
+    days_of_week: string,
+    time_hour: number,
+    time_minute: number
+): number {
+    const db = getSQLiteDB();
+    const result = db.prepare(
+        `UPDATE recurring_tasks
+         SET title = @title,
+             description = @description,
+             days_of_week = @days_of_week,
+             time_hour = @time_hour,
+             time_minute = @time_minute,
+             updated_at = @updated_at
+         WHERE uid = @uid AND id = @id`
+    ).run({
+        uid,
+        id: taskId,
+        title,
+        description: description ?? null,
+        days_of_week,
+        time_hour,
+        time_minute,
+        updated_at: new Date().toISOString(),
+    });
+
+    return result.changes;
+}
