@@ -30,16 +30,21 @@
 3. Update [backend/dbManager.ts](backend/dbManager.ts) to use SQL instead of JSON
    - Reimplement `readDB()`, `writeDB()`, `createUser()`, `getUserByUsername()`, `getUserByUID()`
    - Reimplement task CRUD operations
+     ✅
 
 4. Update [backend/auth.ts](backend/auth.ts) to use new DB layer
    - Test registration, login, logout with SQL backend
+     ✅
 
 5. Update [backend/API.ts](backend/API.ts) task routes to use SQL
    - Verify POST, GET, DELETE endpoints still work
+     ✅
 
 6. Migrate existing data from DB.json to SQL database
+   ✅
 
 7. Test all existing features work identically with SQL backend
+   ✅
 
 **Files to modify:**
 
@@ -51,13 +56,13 @@
 
 **Verification:**
 
-- [ ] Register new user, verify stored in SQL with hashed password
-- [ ] Login with registered user, receive session cookie
-- [ ] Create task via POST /api/tasks, verify in database
-- [ ] Fetch tasks via GET /api/tasks, returns all user tasks
-- [ ] Delete task via DELETE /api/tasks/:id
-- [ ] Logout clears session
-- [ ] All existing dashboard UI works without changes
+- [x] Register new user, verify stored in SQL with hashed password
+- [x] Login with registered user, receive session cookie
+- [x] Create task via POST /api/tasks, verify in database
+- [x] Fetch tasks via GET /api/tasks, returns all user tasks
+- [x] Delete task via DELETE /api/tasks/:id
+- [x] Logout clears session
+- [x] All existing dashboard UI works without changes
 
 ---
 
@@ -73,11 +78,13 @@
    - Add PATCH /api/tasks/:id endpoint to update task status (completed: true/false)
    - Update dashboard UI with toggle/checkbox to mark tasks complete
    - Visual indication for completed tasks (strikethrough or greyed out)
+     ✅
 
 2. Task Editing
    - Add PUT /api/tasks/:id endpoint to update task properties
    - Update dashboard form to allow editing existing tasks
    - Populate form when clicking "edit" on a task
+     ✅
 
 3. Recurring Task Scheduler
    - Implement server-side recurring task expansion:
@@ -111,8 +118,8 @@
 
 **Verification:**
 
-- [ ] Create task, mark completed, verify UI updates and persists
-- [ ] Edit task title/date, verify updates in database
+- [x] Create task, mark completed, verify UI updates and persists
+- [x] Edit task title/date, verify updates in database
 - [ ] View recurring task (weekly lecture), see 4 instances expanded in calendar
 - [ ] Filter tasks by "Today", "This Week" — returns correct subset
 - [ ] Calendar displays all tasks for the month
