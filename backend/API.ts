@@ -14,6 +14,7 @@ import {
     updateOneTimeTaskCompletion,
     updateOneTimeTaskRow,
     updateRecurringTaskRow,
+    setRecurringInstanceCompletion,
     getUserByUID,
 } from './dbManager';
 
@@ -101,6 +102,17 @@ export function updateTaskCompletion(UID: string, taskId: string, completed: boo
     if (updatedCount === 0) {
         throw new AppError('Task not found', ERRORS.TASK_NOT_FOUND);
     }
+}
+
+export function toggleRecurringInstance(UID: string, taskId: string, instanceDate: string, completed: boolean): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+    if (!instanceDate || typeof instanceDate !== 'string') {
+        throw new AppError('Instance date is required', ERRORS.INVALID_TASK_DATA);
+    }
+    setRecurringInstanceCompletion(UID, taskId, instanceDate, completed);
 }
 
 export function updateTask(

@@ -21,6 +21,7 @@ export interface OneTimeTask extends Task {
 export interface RecurringTask extends Task {
     days: Array<DAY>;
     time: TimeOfDay;
+    completedDates: string[];
 }
 
 export function assertTaskType(value: any): void {

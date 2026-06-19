@@ -1,4 +1,5 @@
 import fs from 'fs';
+import crypto from 'crypto';
 import Database from 'better-sqlite3';
 
 import AppError from './error/appError';
@@ -78,6 +79,16 @@ function initializeSQLite(dbPath: string): void {
             course_code TEXT,
             color_code TEXT,
             created_at TEXT NOT NULL,
+            FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS recurring_task_completions (
+            id TEXT PRIMARY KEY,
+            recurring_task_id TEXT NOT NULL,
+            uid TEXT NOT NULL,
+            instance_date TEXT NOT NULL,
+            UNIQUE(recurring_task_id, instance_date),
+            FOREIGN KEY(recurring_task_id) REFERENCES recurring_tasks(id) ON DELETE CASCADE,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
     `);
@@ -165,7 +176,7 @@ function mapOneTimeTaskRow(row: TaskRow): OneTimeTask {
     };
 }
 
-function mapRecurringTaskRow(row: RecurringTaskRow): RecurringTask {
+function mapRecurringTaskRow(row: RecurringTaskRow, completedDates: string[] = []): RecurringTask {
     return {
         id: row.id,
         title: row.title,
@@ -176,6 +187,7 @@ function mapRecurringTaskRow(row: RecurringTaskRow): RecurringTask {
             hour: row.time_hour ?? 0,
             minute: row.time_minute ?? 0,
         },
+        completedDates,
     };
 }
 
@@ -223,7 +235,34 @@ export function getOneTimeTasksByUID(uid: string): OneTimeTask[] {
 export function getRecurringTasksByUID(uid: string): RecurringTask[] {
     const db = getSQLiteDB();
     const rows = db.prepare<{ uid: string }, RecurringTaskRow>('SELECT * FROM recurring_tasks WHERE uid = @uid').all({ uid });
-    return rows.map(mapRecurringTaskRow);
+
+    const completions = db.prepare<{ uid: string }, { recurring_task_id: string; instance_date: string }>(
+        'SELECT recurring_task_id, instance_date FROM recurring_task_completions WHERE uid = @uid'
+    ).all({ uid });
+
+    const completionMap = new Map<string, string[]>();
+    for (const c of completions) {
+        const dates = completionMap.get(c.recurring_task_id) ?? [];
+        dates.push(c.instance_date);
+        completionMap.set(c.recurring_task_id, dates);
+    }
+
+    return rows.map(row => mapRecurringTaskRow(row, completionMap.get(row.id) ?? []));
+}
+
+export function setRecurringInstanceCompletion(uid: string, taskId: string, instanceDate: string, completed: boolean): void {
+    const db = getSQLiteDB();
+    if (completed) {
+        db.prepare(
+            `INSERT OR IGNORE INTO recurring_task_completions (id, recurring_task_id, uid, instance_date)
+             VALUES (@id, @recurring_task_id, @uid, @instance_date)`
+        ).run({ id: crypto.randomUUID(), recurring_task_id: taskId, uid, instance_date: instanceDate });
+    } else {
+        db.prepare(
+            `DELETE FROM recurring_task_completions
+             WHERE uid = @uid AND recurring_task_id = @recurring_task_id AND instance_date = @instance_date`
+        ).run({ uid, recurring_task_id: taskId, instance_date: instanceDate });
+    }
 }
 
 export function deleteTaskById(uid: string, taskId: string): number {

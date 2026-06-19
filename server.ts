@@ -4,7 +4,7 @@ import {deleteSession, validateSession, login, register} from './backend/auth';
 import { initializeDB } from './backend/dbManager';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { getTasks, deleteTask, updateTaskCompletion, createTask, updateTask } from './backend/API';
+import { getTasks, deleteTask, updateTaskCompletion, createTask, updateTask, toggleRecurringInstance } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -159,6 +159,23 @@ app.put("/api/tasks/:id", (req, res) => {
     const UID = validateSession(sessionID);
 
     updateTask(UID, taskId, type, title, description, date, days, time);
+    res.status(200).json({ success: true });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+app.patch("/api/tasks/:id/instance", (req, res) => {
+  const taskId = req.params.id;
+  const { instanceDate, completed } = req.body;
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+    if (typeof completed !== 'boolean') {
+      throw new AppError('Invalid completed value', ERRORS.INVALID_TASK_DATA);
+    }
+    toggleRecurringInstance(UID, taskId, instanceDate, completed);
     res.status(200).json({ success: true });
   } catch (e) {
     const error = e as AppError;

@@ -96,30 +96,51 @@ cancelEditBtn.addEventListener('click', () => {
 if (tasksList) {
     tasksList.addEventListener('change', async (event) => {
         const target = event.target as HTMLElement;
-        if (!target.matches('.task-complete-checkbox')) return;
-
         const checkbox = target as HTMLInputElement;
-        const taskId = checkbox.getAttribute('data-task-id');
-        if (!taskId) return;
 
-        try {
-            const response = await fetch(`/api/tasks/${taskId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ completed: checkbox.checked }),
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                showFeedback('Task updated successfully', 'success');
-                loadTasks();
-            } else {
-                showFeedback(result.error || 'Failed to update task', 'error');
+        if (target.matches('.task-complete-checkbox')) {
+            const taskId = checkbox.getAttribute('data-task-id');
+            if (!taskId) return;
+            try {
+                const response = await fetch(`/api/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ completed: checkbox.checked }),
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showFeedback('Task updated successfully', 'success');
+                    loadTasks();
+                } else {
+                    showFeedback(result.error || 'Failed to update task', 'error');
+                    loadTasks();
+                }
+            } catch (error) {
+                showFeedback('Error updating task', 'error');
                 loadTasks();
             }
-        } catch (error) {
-            showFeedback('Error updating task', 'error');
-            loadTasks();
+        } else if (target.matches('.task-instance-checkbox')) {
+            const taskId = checkbox.getAttribute('data-task-id');
+            const instanceDate = checkbox.getAttribute('data-instance-date');
+            if (!taskId || !instanceDate) return;
+            try {
+                const response = await fetch(`/api/tasks/${taskId}/instance`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ instanceDate, completed: checkbox.checked }),
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showFeedback('Task updated successfully', 'success');
+                    loadTasks();
+                } else {
+                    showFeedback(result.error || 'Failed to update task', 'error');
+                    loadTasks();
+                }
+            } catch (error) {
+                showFeedback('Error updating task', 'error');
+                loadTasks();
+            }
         }
     });
 
@@ -266,89 +287,112 @@ async function loadTasks() {
     }
 }
 
+const DAY_NAMES = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+function expandRecurringTasks(tasks: any[], weeks = 4): any[] {
+    const instances: any[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + weeks * 7);
+
+    for (const task of tasks.filter(t => t.type === 'RECURRING')) {
+        if (!task.days?.length) continue;
+        const cursor = new Date(today);
+        while (cursor <= endDate) {
+            if (task.days.includes(DAY_NAMES[cursor.getDay()])) {
+                const instanceDate = new Date(cursor);
+                if (task.time) instanceDate.setHours(task.time.hour, task.time.minute, 0, 0);
+                const instanceDateStr = cursor.toISOString().split('T')[0];
+                const completed = Array.isArray(task.completedDates) && task.completedDates.includes(instanceDateStr);
+                instances.push({ ...task, _instanceDate: new Date(instanceDate), _instanceDateStr: instanceDateStr, completed });
+            }
+            cursor.setDate(cursor.getDate() + 1);
+        }
+    }
+    return instances;
+}
+
 // Display tasks in the list
 function displayTasks(tasks: any[]) {
-    if (!tasks || tasks.length === 0) {
-        if (tasksList) {
-            tasksList.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📝</div>
-                    <p>No tasks yet</p>
-                    <p style="font-size: 12px; color: #ccc;">Create your first task to get started</p>
-                </div>
-            `;
-        }
+    const oneTime = tasks.filter(t => t.type === 'ONE_TIME');
+    const recurringInstances = expandRecurringTasks(tasks);
+
+    const allItems = [
+        ...oneTime.map(t => ({ ...t, _sortDate: new Date(t.date) })),
+        ...recurringInstances.map(t => ({ ...t, _sortDate: t._instanceDate as Date })),
+    ].sort((a, b) => +a._sortDate - +b._sortDate);
+
+    if (!tasksList) return;
+
+    if (allItems.length === 0) {
+        tasksList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📝</div>
+                <p>No tasks yet</p>
+                <p style="font-size: 12px; color: #ccc;">Create your first task to get started</p>
+            </div>
+        `;
         return;
     }
 
-    if (tasksList) {
-        tasksList.innerHTML = tasks.map(task => {
-            let taskDetailsHtml = '';
-            
-            if (task.type === 'ONE_TIME') {
-                taskDetailsHtml = `<div class="task-date">📅 ${formatDate(task.date)}</div>`;
-                if (task.completed) {
-                    taskDetailsHtml += `<div class="task-status"><span class="status-badge completed">✓ Completed</span></div>`;
-                }
-            } else if (task.type === 'RECURRING') {
-                const daysDisplay = task.days ? task.days.join(', ') : 'No days set';
-                
-                // Convert 24-hour format to 12-hour format with AM/PM
-                let hour12 = task.time ? task.time.hour : 0;
-                let ampm = 'AM';
-                if (hour12 >= 12) {
-                    ampm = 'PM';
-                    if (hour12 > 12) hour12 -= 12;
-                } else if (hour12 === 0) {
-                    hour12 = 12;
-                }
-                
-                const timeDisplay = task.time ? `${hour12}:${String(task.time.minute).padStart(2, '0')} ${ampm}` : 'No time set';
-                taskDetailsHtml = `
-                    <div class="task-recurring-info">
-                        <div class="task-days">📆 ${daysDisplay}</div>
-                        <div class="task-time">🕐 ${timeDisplay}</div>
-                    </div>
-                `;
+    tasksList.innerHTML = allItems.map(task => {
+        let taskDetailsHtml = '';
+
+        if (task.type === 'ONE_TIME') {
+            taskDetailsHtml = `<div class="task-date">📅 ${formatDate(task.date)}</div>`;
+            if (task.completed) {
+                taskDetailsHtml += `<div class="task-status"><span class="status-badge completed">✓ Completed</span></div>`;
             }
+        } else {
+            const d = task._instanceDate as Date;
+            const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            let hour12 = task.time ? task.time.hour : 0;
+            let ampm = 'AM';
+            if (hour12 >= 12) { ampm = 'PM'; if (hour12 > 12) hour12 -= 12; }
+            else if (hour12 === 0) hour12 = 12;
+            const timeStr = task.time ? ` at ${hour12}:${String(task.time.minute).padStart(2, '0')} ${ampm}` : '';
+            taskDetailsHtml = `<div class="task-date">📅 ${dateStr}${timeStr}</div>`;
+        }
 
-            const taskCardClass = task.completed ? 'task-card completed' : 'task-card';
-            const completionToggle = task.type === 'ONE_TIME' ? `
-                <label class="task-complete-toggle">
-                    <input type="checkbox" class="task-complete-checkbox" data-task-id="${escapeHtml(task.id)}" ${task.completed ? 'checked' : ''}>
-                    <span>${task.completed ? 'Completed' : 'Mark complete'}</span>
-                </label>
-            ` : '';
+        const taskCardClass = task.completed ? 'task-card completed' : 'task-card';
+        const completionToggle = task.type === 'ONE_TIME' ? `
+            <label class="task-complete-toggle">
+                <input type="checkbox" class="task-complete-checkbox" data-task-id="${escapeHtml(task.id)}" ${task.completed ? 'checked' : ''}>
+                <span>${task.completed ? 'Completed' : 'Mark complete'}</span>
+            </label>
+        ` : `
+            <label class="task-complete-toggle">
+                <input type="checkbox" class="task-instance-checkbox" data-task-id="${escapeHtml(task.id)}" data-instance-date="${escapeHtml(task._instanceDateStr)}" ${task.completed ? 'checked' : ''}>
+                <span>${task.completed ? 'Completed' : 'Mark complete'}</span>
+            </label>
+        `;
 
-            return `
-                <div class="${taskCardClass}">
-                    <div class="task-header">
-                        <div class="task-title">${escapeHtml(task.title)}</div>
-                        <span class="task-type ${task.type === 'ONE_TIME' ? 'one-time' : 'recurring'}">${escapeHtml(task.type)}</span>
-                    </div>
-                    ${taskDetailsHtml}
-                    ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
-                    <div class="task-actions">
-                        ${completionToggle}
-                        <button class="task-btn task-btn-edit" data-task-id="${escapeHtml(task.id)}">Edit</button>
-                        <button class="task-btn task-btn-delete" data-task-id="${escapeHtml(task.id)}">Delete</button>
-                    </div>
+        return `
+            <div class="${taskCardClass}">
+                <div class="task-header">
+                    <div class="task-title">${escapeHtml(task.title)}</div>
+                    <span class="task-type ${task.type === 'ONE_TIME' ? 'one-time' : 'recurring'}">${task.type === 'ONE_TIME' ? 'ONE TIME' : 'RECURRING'}</span>
                 </div>
-            `;
-        }).join('');
-        
-        // Add event listeners to delete buttons using event delegation
-        const deleteButtons = tasksList.querySelectorAll('.task-btn-delete');
-        deleteButtons.forEach(button => {
-            button.addEventListener('click', async (e) => {
-                e.preventDefault();
-                const taskId = (button as HTMLButtonElement).getAttribute('data-task-id');
-                if (taskId) {
-                    await deleteTask(taskId);
-                }
-            });
+                ${taskDetailsHtml}
+                ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
+                <div class="task-actions">
+                    ${completionToggle}
+                    <button class="task-btn task-btn-edit" data-task-id="${escapeHtml(task.id)}">Edit</button>
+                    <button class="task-btn task-btn-delete" data-task-id="${escapeHtml(task.id)}">Delete</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    const deleteButtons = tasksList.querySelectorAll('.task-btn-delete');
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const taskId = (button as HTMLButtonElement).getAttribute('data-task-id');
+            if (taskId) await deleteTask(taskId);
         });
-    }
+    });
 }
 
 // Delete task
