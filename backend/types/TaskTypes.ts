@@ -6,11 +6,19 @@ export const TASKS = {
 };
 export type TaskType = typeof TASKS[keyof typeof TASKS];
 
+export interface Course {
+    id: string;
+    name: string;
+    code?: string;
+    color?: string;
+}
+
 export interface Task {
     id: string;
     title: string;
     description?: string;
     type: TaskType;
+    course_id?: string;
 }
 
 export interface OneTimeTask extends Task {

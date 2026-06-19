@@ -16,6 +16,7 @@ export interface SessionRow {
 export interface TaskRow {
     id: string;
     uid: string;
+    course_id?: string;
     title: string;
     description?: string;
     type: string;
@@ -28,6 +29,7 @@ export interface TaskRow {
 export interface RecurringTaskRow {
     id: string;
     uid: string;
+    course_id?: string;
     title: string;
     description?: string;
     days_of_week?: string;
@@ -36,4 +38,13 @@ export interface RecurringTaskRow {
     active: number;
     created_at: string;
     updated_at?: string;
+}
+
+export interface CourseRow {
+    id: string;
+    uid: string;
+    course_name: string;
+    course_code?: string;
+    color_code?: string;
+    created_at: string;
 }

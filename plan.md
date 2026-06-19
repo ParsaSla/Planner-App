@@ -91,6 +91,7 @@
      - On task fetch, expand recurring tasks into individual instances for next 4 weeks
      - Store expanded instances or generate on-the-fly (recommend on-the-fly initially)
    - Display upcoming recurring instances in task list
+     ✅
 
 4. Complete Calendar View
    - Implement full calendar rendering for current/next month
@@ -120,7 +121,7 @@
 
 - [x] Create task, mark completed, verify UI updates and persists
 - [x] Edit task title/date, verify updates in database
-- [ ] View recurring task (weekly lecture), see 4 instances expanded in calendar
+- [x] View recurring task (weekly lecture), see 4 instances expanded in calendar
 - [ ] Filter tasks by "Today", "This Week" — returns correct subset
 - [ ] Calendar displays all tasks for the month
 - [ ] Click date on calendar to add/view tasks for that day

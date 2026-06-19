@@ -112,6 +112,7 @@ app.get("/dashboard/", (req, res) => {
 // DASHBOARD API ENDPOINTS //
 /////////////////////////////
 
+// create task, expects { type, title, description, date, days, time }
 app.post("/api/tasks", (req, res) => {
   const { type, title, description, date, days, time } = req.body;
   try {
@@ -119,13 +120,14 @@ app.post("/api/tasks", (req, res) => {
     const UID = validateSession(sessionID);
     createTask(type, title, UID, date, days, time, description);
 
-    res.status(200).json({ success: true });
+    res.status(201).json({ success: true });
   } catch (e) {
     const error = e as AppError;
     res.status(getStatusCode(error)).json({ success: false, error: error.message });
   }
 });
 
+// get tasks
 app.get("/api/tasks", (req, res) => {
   try {
     const sessionID = retrieveSessionID(req.headers.cookie);
@@ -138,6 +140,7 @@ app.get("/api/tasks", (req, res) => {
   }
 });
 
+// delete task
 app.delete("/api/tasks/:id", (req, res) => {
   const taskId = req.params.id;
   try {
@@ -151,6 +154,7 @@ app.delete("/api/tasks/:id", (req, res) => {
   }
 });
 
+// update task (both one-time and recurring)
 app.put("/api/tasks/:id", (req, res) => {
   const taskId = req.params.id;
   const { type, title, description, date, days, time } = req.body;
@@ -166,6 +170,7 @@ app.put("/api/tasks/:id", (req, res) => {
   }
 });
 
+// toggle recurring instance completion
 app.patch("/api/tasks/:id/instance", (req, res) => {
   const taskId = req.params.id;
   const { instanceDate, completed } = req.body;
@@ -183,6 +188,7 @@ app.patch("/api/tasks/:id/instance", (req, res) => {
   }
 });
 
+// update one-time task completion
 app.patch("/api/tasks/:id", (req, res) => {
   const taskId = req.params.id;
   const { completed } = req.body;

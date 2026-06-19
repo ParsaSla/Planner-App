@@ -7,6 +7,8 @@ export const ERRORS = {
     INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
     TASK_NOT_FOUND: 'TASK_NOT_FOUND',
     INVALID_TASK_DATA: 'INVALID_TASK_DATA',
+    COURSE_NOT_FOUND: 'COURSE_NOT_FOUND',
+    INVALID_COURSE_DATA: 'INVALID_COURSE_DATA',
 };
 export type ErrorType = typeof ERRORS[keyof typeof ERRORS];
 
@@ -27,7 +29,8 @@ const HttpMap = {
     [ERRORS.INVALID_CREDENTIALS]: 401,
     [ERRORS.TASK_NOT_FOUND]: 404,
     [ERRORS.INVALID_TASK_DATA]: 400,
-
+    [ERRORS.COURSE_NOT_FOUND]: 404,
+    [ERRORS.INVALID_COURSE_DATA]: 400,
 };
 
 export function getStatusCode(appError: AppError): number {
