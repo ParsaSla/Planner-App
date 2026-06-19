@@ -84,6 +84,12 @@
 
                     <input type="hidden" id="taskId" name="taskId">
                     <div class="form-group">
+                        <label for="taskCourse">Course (optional):</label>
+                        <select id="taskCourse" name="courseId">
+                            <option value="">— No Course —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label for="taskDescription">Description:</label>
                         <textarea id="taskDescription" name="description" placeholder="Add task details..."></textarea>
                     </div>
@@ -97,7 +103,10 @@
 
             <!-- Tasks Display Section -->
             <div class="tasks-section">
-                <h2>Your Tasks</h2>
+                <div class="tasks-section-header">
+                    <h2>Your Tasks</h2>
+                    <div id="courseFilters" class="course-filters"></div>
+                </div>
                 <div id="tasksList" class="tasks-list">
                     <div class="empty-state">
                         <div class="empty-state-icon">📝</div>
@@ -118,6 +127,27 @@
                 <div id="calendar" class="calendar-grid"></div>
                 <div id="calendarEvents" class="calendar-events"></div>
             </div>
+        </div>
+
+        <!-- Courses Management Section -->
+        <div class="courses-section">
+            <div class="courses-header">
+                <h2>Courses</h2>
+                <button id="toggleAddCourse" class="add-course-toggle-btn" type="button">+ Add Course</button>
+            </div>
+            <div id="addCourseForm" class="add-course-form" style="display:none;">
+                <div class="add-course-fields">
+                    <input type="text" id="courseName" placeholder="Course name *" maxlength="100">
+                    <input type="text" id="courseCode" placeholder="Code (e.g. CS101)" maxlength="20">
+                    <div class="color-picker-group">
+                        <label for="courseColor">Color:</label>
+                        <input type="color" id="courseColor" value="#667eea">
+                    </div>
+                    <button id="saveCourseBtn" type="button" class="save-course-btn">Save</button>
+                    <button id="cancelCourseBtn" type="button" class="cancel-course-btn">Cancel</button>
+                </div>
+            </div>
+            <div id="coursesList" class="courses-list"></div>
         </div>
     </div>
 

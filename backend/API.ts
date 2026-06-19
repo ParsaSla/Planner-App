@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 import { TimeOfDay, DAY, assertDaysType, assertTimeOfDayType } from './types/GeneralTypes';
-import { assertTaskType, Task, TASKS, TaskType } from './types/TaskTypes';
+import { assertTaskType, Course, Task, TASKS, TaskType } from './types/TaskTypes';
 import AppError from './error/appError';
 import { ERRORS } from './error/errors';
 import { convertToDateObj } from './util';
@@ -16,9 +16,13 @@ import {
     updateRecurringTaskRow,
     setRecurringInstanceCompletion,
     getUserByUID,
+    createCourseRow,
+    getCoursesByUID,
+    getCourseById,
+    deleteCourseById,
 } from './dbManager';
 
-export function createOneTimeTask(title: string, UID: string, date: Date, description?: string): void {
+export function createOneTimeTask(title: string, UID: string, date: Date, description?: string, courseId?: string): void {
     const user = getUserByUID(UID);
     if (!user) {
         throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
@@ -27,6 +31,7 @@ export function createOneTimeTask(title: string, UID: string, date: Date, descri
     createOneTimeTaskRow({
         id: crypto.randomUUID(),
         uid: UID,
+        course_id: courseId,
         title,
         description,
         type: TASKS.ONE_TIME,
@@ -36,7 +41,7 @@ export function createOneTimeTask(title: string, UID: string, date: Date, descri
     });
 }
 
-export function createRecurringTask(title: string, UID: string, days: Array<DAY>, time: TimeOfDay, description?: string): void {
+export function createRecurringTask(title: string, UID: string, days: Array<DAY>, time: TimeOfDay, description?: string, courseId?: string): void {
     const user = getUserByUID(UID);
     if (!user) {
         throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
@@ -48,6 +53,7 @@ export function createRecurringTask(title: string, UID: string, days: Array<DAY>
     createRecurringTaskRow({
         id: crypto.randomUUID(),
         uid: UID,
+        course_id: courseId,
         title,
         description,
         days_of_week: JSON.stringify(days),
@@ -58,16 +64,16 @@ export function createRecurringTask(title: string, UID: string, days: Array<DAY>
     });
 }
 
-export function createTask(type: TaskType, title: string, UID: string, date: string, days: Array<DAY>, time: TimeOfDay, description?: string): void {
+export function createTask(type: TaskType, title: string, UID: string, date: string, days: Array<DAY>, time: TimeOfDay, description?: string, courseId?: string): void {
     assertTaskType(type);
 
     if (type === TASKS.ONE_TIME) {
         const dateObj = convertToDateObj(date);
-        createOneTimeTask(title, UID, dateObj, description);
+        createOneTimeTask(title, UID, dateObj, description, courseId);
     } else if (type === TASKS.RECURRING) {
         assertDaysType(days);
         assertTimeOfDayType(time);
-        createRecurringTask(title, UID, days, time, description);
+        createRecurringTask(title, UID, days, time, description, courseId);
     }
 }
 
@@ -123,7 +129,8 @@ export function updateTask(
     description: string | undefined,
     date?: string,
     days?: Array<DAY>,
-    time?: TimeOfDay
+    time?: TimeOfDay,
+    courseId?: string
 ): void {
     const user = getUserByUID(UID);
     if (!user) {
@@ -142,7 +149,7 @@ export function updateTask(
             throw new AppError('Date is required for one-time tasks', ERRORS.INVALID_TASK_DATA);
         }
         const dateObj = convertToDateObj(date);
-        updatedCount = updateOneTimeTaskRow(UID, taskId, title, description, dateObj.toISOString());
+        updatedCount = updateOneTimeTaskRow(UID, taskId, title, description, dateObj.toISOString(), courseId);
     } else {
         if (!days || days.length === 0) {
             throw new AppError('At least one day is required for recurring tasks', ERRORS.INVALID_TASK_DATA);
@@ -159,11 +166,55 @@ export function updateTask(
             description,
             JSON.stringify(days),
             time.hour,
-            time.minute
+            time.minute,
+            courseId
         );
     }
 
     if (updatedCount === 0) {
         throw new AppError('Task not found', ERRORS.TASK_NOT_FOUND);
     }
+}
+
+export function createCourse(name: string, UID: string, code?: string, color?: string): void {
+    if (!name || !name.trim()) {
+        throw new AppError('Course name is required', ERRORS.INVALID_COURSE_DATA);
+    }
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+    createCourseRow({
+        id: crypto.randomUUID(),
+        uid: UID,
+        course_name: name.trim(),
+        course_code: code?.trim() || undefined,
+        color_code: color || undefined,
+        created_at: new Date().toISOString(),
+    });
+}
+
+export function getCourses(UID: string): Course[] {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+    return getCoursesByUID(UID).map(row => ({
+        id: row.id,
+        name: row.course_name,
+        code: row.course_code || undefined,
+        color: row.color_code || undefined,
+    }));
+}
+
+export function deleteCourse(UID: string, courseId: string): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+    const course = getCourseById(UID, courseId);
+    if (!course) {
+        throw new AppError('Course not found', ERRORS.COURSE_NOT_FOUND);
+    }
+    deleteCourseById(UID, courseId);
 }

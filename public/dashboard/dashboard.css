@@ -696,6 +696,234 @@ body {
     border-left-color: #ff6b6b;
 }
 
+/* ── Courses Section ──────────────────────────────────────────── */
+
+.courses-section {
+    background: white;
+    border-radius: 10px;
+    padding: 24px 30px;
+    margin-top: 30px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+.courses-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.courses-header h2 {
+    font-size: 20px;
+    color: #333;
+}
+
+.add-course-toggle-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.add-course-toggle-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.add-course-form {
+    background: #f8f9ff;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.add-course-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.add-course-fields input[type="text"] {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 120px;
+}
+
+.add-course-fields input[type="text"]:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.color-picker-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #555;
+}
+
+.color-picker-group input[type="color"] {
+    width: 36px;
+    height: 32px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px;
+}
+
+.save-course-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.cancel-course-btn {
+    background: #eee;
+    color: #555;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.courses-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.course-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #333;
+}
+
+.course-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.course-chip-label {
+    flex: 1;
+}
+
+.course-delete-btn {
+    background: none;
+    border: none;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 2px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.course-delete-btn:hover {
+    color: #e55;
+}
+
+.no-courses-msg {
+    color: #999;
+    font-size: 13px;
+}
+
+/* ── Course badge on task cards ───────────────────────────────── */
+
+.course-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    margin-left: 8px;
+    vertical-align: middle;
+    opacity: 0.9;
+}
+
+/* ── Course filter bar ────────────────────────────────────────── */
+
+.tasks-section-header {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.tasks-section-header h2 {
+    margin-bottom: 0;
+}
+
+.course-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.course-filter-btn {
+    padding: 4px 12px;
+    border-radius: 14px;
+    border: 2px solid #ddd;
+    background: white;
+    color: #555;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.course-filter-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.course-filter-btn.active {
+    background: var(--course-color, #667eea);
+    border-color: var(--course-color, #667eea);
+    color: white;
+}
+
+/* ── Course selector in task form ─────────────────────────────── */
+
+#taskCourse {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #333;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.3s ease;
+}
+
+#taskCourse:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
 @media (max-width: 768px) {
     .main-content {
         grid-template-columns: 1fr;

@@ -6,7 +6,8 @@ import AppError from './error/appError';
 import { ERRORS } from './error/errors';
 import { DAY, TimeOfDay } from './types/GeneralTypes';
 import { OneTimeTask, RecurringTask, Task, TASKS } from './types/TaskTypes';
-import { UserRow, SessionRow, TaskRow, RecurringTaskRow } from './types/DBTypes';
+import { UserRow, SessionRow, TaskRow, RecurringTaskRow, CourseRow } from './types/DBTypes';
+import { Course } from './types/TaskTypes';
 
 const DEFAULT_SQLITE_DB_PATH = 'data/app.db';
 let sqliteDB: Database.Database | null = null;
@@ -92,6 +93,16 @@ function initializeSQLite(dbPath: string): void {
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
     `);
+
+    // Migrate: add course_id to tasks and recurring_tasks for existing databases
+    const taskCols = sqliteDB.pragma('table_info(tasks)') as Array<{ name: string }>;
+    if (!taskCols.find(c => c.name === 'course_id')) {
+        sqliteDB.exec('ALTER TABLE tasks ADD COLUMN course_id TEXT');
+    }
+    const recurringCols = sqliteDB.pragma('table_info(recurring_tasks)') as Array<{ name: string }>;
+    if (!recurringCols.find(c => c.name === 'course_id')) {
+        sqliteDB.exec('ALTER TABLE recurring_tasks ADD COLUMN course_id TEXT');
+    }
 }
 
 export function getSQLiteDB(): Database.Database {
@@ -173,6 +184,7 @@ function mapOneTimeTaskRow(row: TaskRow): OneTimeTask {
         type: TASKS.ONE_TIME,
         date: new Date(row.date || ''),
         completed: Boolean(row.completed),
+        course_id: row.course_id || undefined,
     };
 }
 
@@ -188,12 +200,14 @@ function mapRecurringTaskRow(row: RecurringTaskRow, completedDates: string[] = [
             minute: row.time_minute ?? 0,
         },
         completedDates,
+        course_id: row.course_id || undefined,
     };
 }
 
 export function createOneTimeTaskRow(task: {
     id: string;
     uid: string;
+    course_id?: string;
     title: string;
     description?: string;
     type: string;
@@ -203,14 +217,15 @@ export function createOneTimeTaskRow(task: {
 }): void {
     const db = getSQLiteDB();
     db.prepare(
-        `INSERT INTO tasks (id, uid, title, description, type, date, completed, created_at)
-         VALUES (@id, @uid, @title, @description, @type, @date, @completed, @created_at)`
-    ).run(task);
+        `INSERT INTO tasks (id, uid, course_id, title, description, type, date, completed, created_at)
+         VALUES (@id, @uid, @course_id, @title, @description, @type, @date, @completed, @created_at)`
+    ).run({ ...task, course_id: task.course_id ?? null });
 }
 
 export function createRecurringTaskRow(task: {
     id: string;
     uid: string;
+    course_id?: string;
     title: string;
     description?: string;
     days_of_week: string;
@@ -221,9 +236,9 @@ export function createRecurringTaskRow(task: {
 }): void {
     const db = getSQLiteDB();
     db.prepare(
-        `INSERT INTO recurring_tasks (id, uid, title, description, days_of_week, time_hour, time_minute, active, created_at)
-         VALUES (@id, @uid, @title, @description, @days_of_week, @time_hour, @time_minute, @active, @created_at)`
-    ).run(task);
+        `INSERT INTO recurring_tasks (id, uid, course_id, title, description, days_of_week, time_hour, time_minute, active, created_at)
+         VALUES (@id, @uid, @course_id, @title, @description, @days_of_week, @time_hour, @time_minute, @active, @created_at)`
+    ).run({ ...task, course_id: task.course_id ?? null });
 }
 
 export function getOneTimeTasksByUID(uid: string): OneTimeTask[] {
@@ -286,13 +301,14 @@ export function updateOneTimeTaskCompletion(uid: string, taskId: string, complet
     return result.changes;
 }
 
-export function updateOneTimeTaskRow(uid: string, taskId: string, title: string, description: string | undefined, date: string): number {
+export function updateOneTimeTaskRow(uid: string, taskId: string, title: string, description: string | undefined, date: string, course_id?: string): number {
     const db = getSQLiteDB();
     const result = db.prepare(
         `UPDATE tasks
          SET title = @title,
              description = @description,
              date = @date,
+             course_id = @course_id,
              updated_at = @updated_at
          WHERE uid = @uid AND id = @id`
     ).run({
@@ -301,6 +317,7 @@ export function updateOneTimeTaskRow(uid: string, taskId: string, title: string,
         title,
         description: description ?? null,
         date,
+        course_id: course_id ?? null,
         updated_at: new Date().toISOString(),
     });
 
@@ -314,7 +331,8 @@ export function updateRecurringTaskRow(
     description: string | undefined,
     days_of_week: string,
     time_hour: number,
-    time_minute: number
+    time_minute: number,
+    course_id?: string
 ): number {
     const db = getSQLiteDB();
     const result = db.prepare(
@@ -324,6 +342,7 @@ export function updateRecurringTaskRow(
              days_of_week = @days_of_week,
              time_hour = @time_hour,
              time_minute = @time_minute,
+             course_id = @course_id,
              updated_at = @updated_at
          WHERE uid = @uid AND id = @id`
     ).run({
@@ -334,8 +353,33 @@ export function updateRecurringTaskRow(
         days_of_week,
         time_hour,
         time_minute,
+        course_id: course_id ?? null,
         updated_at: new Date().toISOString(),
     });
 
     return result.changes;
+}
+
+export function createCourseRow(course: { id: string; uid: string; course_name: string; course_code?: string; color_code?: string; created_at: string }): void {
+    const db = getSQLiteDB();
+    db.prepare(
+        `INSERT INTO courses (id, uid, course_name, course_code, color_code, created_at)
+         VALUES (@id, @uid, @course_name, @course_code, @color_code, @created_at)`
+    ).run({ ...course, course_code: course.course_code ?? null, color_code: course.color_code ?? null });
+}
+
+export function getCoursesByUID(uid: string): CourseRow[] {
+    const db = getSQLiteDB();
+    return db.prepare<{ uid: string }, CourseRow>('SELECT * FROM courses WHERE uid = @uid ORDER BY course_name ASC').all({ uid });
+}
+
+export function getCourseById(uid: string, courseId: string): CourseRow | null {
+    const db = getSQLiteDB();
+    const row = db.prepare<{ uid: string; id: string }, CourseRow>('SELECT * FROM courses WHERE uid = @uid AND id = @id').get({ uid, id: courseId });
+    return row || null;
+}
+
+export function deleteCourseById(uid: string, courseId: string): number {
+    const db = getSQLiteDB();
+    return db.prepare('DELETE FROM courses WHERE uid = @uid AND id = @id').run({ uid, id: courseId }).changes;
 }

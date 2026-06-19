@@ -22,6 +22,8 @@ if (!logoutBtn || !createTaskForm || !tasksList || !feedback || !taskTypeOneTime
 let editingTaskId: string | null = null;
 let currentDate = new Date();
 let allTasks: any[] = [];
+let allCourses: any[] = [];
+let activeCourseFilter: string | null = null; // null = show all
 
 function resetTaskForm() {
     createTaskForm!.reset();
@@ -32,6 +34,8 @@ function resetTaskForm() {
     if (submitButton) submitButton.textContent = 'Create Task';
     taskTypeOneTime!.checked = true;
     taskTypeRecurring!.checked = false;
+    const courseSelect = document.getElementById('taskCourse') as HTMLSelectElement | null;
+    if (courseSelect) courseSelect.value = '';
     updateTaskTypeDisplay();
 }
 
@@ -53,6 +57,8 @@ function populateTaskForm(task: any) {
 
     if (titleInput) titleInput.value = task.title || '';
     if (descriptionInput) descriptionInput.value = task.description || '';
+    const courseSelect = document.getElementById('taskCourse') as HTMLSelectElement | null;
+    if (courseSelect) courseSelect.value = task.course_id || '';
 
     if (task.type === 'ONE_TIME') {
         taskTypeOneTime!.checked = true;
@@ -202,12 +208,14 @@ createTaskForm.addEventListener("submit", async (event) => {
     const taskType = formData.get("taskType") as string;
     const title = formData.get("title") as string;
     const description = formData.get("description") as string;
+    const courseId = formData.get("courseId") as string;
     const taskId = taskIdInput ? taskIdInput.value : null;
 
     let data: any = {
         type: taskType,
         title,
-        description: description || undefined
+        description: description || undefined,
+        courseId: courseId || undefined,
     };
 
     if (taskType === "ONE_TIME") {
@@ -272,18 +280,107 @@ createTaskForm.addEventListener("submit", async (event) => {
 // Load and display tasks
 async function loadTasks() {
     try {
-        const response = await fetch("/api/tasks", {
-            method: "GET",
-        });
-
+        const response = await fetch("/api/tasks", { method: "GET" });
         const result = await response.json();
         if (result.success) {
-            displayTasks(result.tasks || []);
-            generateCalendar(result.tasks || []);
+            allTasks = result.tasks || [];
+            displayTasks(allTasks);
+            generateCalendar(allTasks);
         }
     } catch (error) {
         console.error("Error loading tasks:", error);
         showFeedback("Error loading tasks", "error");
+    }
+}
+
+async function loadCourses() {
+    try {
+        const response = await fetch("/api/courses", { method: "GET" });
+        const result = await response.json();
+        if (result.success) {
+            allCourses = result.courses || [];
+            populateCourseSelector();
+            renderCoursesList();
+            renderCourseFilters();
+        }
+    } catch (error) {
+        console.error("Error loading courses:", error);
+    }
+}
+
+function populateCourseSelector() {
+    const select = document.getElementById('taskCourse') as HTMLSelectElement | null;
+    if (!select) return;
+    const current = select.value;
+    select.innerHTML = '<option value="">— No Course —</option>';
+    allCourses.forEach(course => {
+        const opt = document.createElement('option');
+        opt.value = course.id;
+        opt.textContent = course.code ? `${course.code} – ${course.name}` : course.name;
+        select.appendChild(opt);
+    });
+    select.value = current;
+}
+
+function renderCourseFilters() {
+    const container = document.getElementById('courseFilters');
+    if (!container) return;
+    let html = `<button class="course-filter-btn ${activeCourseFilter === null ? 'active' : ''}" data-filter="">All</button>`;
+    allCourses.forEach(course => {
+        const color = course.color || '#667eea';
+        const isActive = activeCourseFilter === course.id;
+        html += `<button class="course-filter-btn ${isActive ? 'active' : ''}" data-filter="${escapeHtml(course.id)}" style="--course-color:${escapeHtml(color)}">${escapeHtml(course.code || course.name)}</button>`;
+    });
+    container.innerHTML = html;
+    container.querySelectorAll('.course-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const filter = (btn as HTMLElement).getAttribute('data-filter');
+            activeCourseFilter = filter || null;
+            renderCourseFilters();
+            displayTasks(allTasks);
+        });
+    });
+}
+
+function renderCoursesList() {
+    const container = document.getElementById('coursesList');
+    if (!container) return;
+    if (allCourses.length === 0) {
+        container.innerHTML = '<p class="no-courses-msg">No courses yet. Add one above.</p>';
+        return;
+    }
+    container.innerHTML = allCourses.map(course => {
+        const color = course.color || '#667eea';
+        const label = course.code ? `<strong>${escapeHtml(course.code)}</strong> – ${escapeHtml(course.name)}` : `<strong>${escapeHtml(course.name)}</strong>`;
+        return `
+            <div class="course-chip" style="border-left: 4px solid ${escapeHtml(color)}">
+                <span class="course-dot" style="background:${escapeHtml(color)}"></span>
+                <span class="course-chip-label">${label}</span>
+                <button class="course-delete-btn" data-course-id="${escapeHtml(course.id)}" title="Delete course">✕</button>
+            </div>
+        `;
+    }).join('');
+    container.querySelectorAll('.course-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const courseId = (btn as HTMLElement).getAttribute('data-course-id');
+            if (courseId) await deleteCourseUI(courseId);
+        });
+    });
+}
+
+async function deleteCourseUI(courseId: string) {
+    try {
+        const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (result.success) {
+            if (activeCourseFilter === courseId) activeCourseFilter = null;
+            await loadCourses();
+            await loadTasks();
+        } else {
+            showFeedback(result.error || 'Failed to delete course', 'error');
+        }
+    } catch {
+        showFeedback('Error deleting course', 'error');
     }
 }
 
@@ -313,10 +410,28 @@ function expandRecurringTasks(tasks: any[], weeks = 4): any[] {
     return instances;
 }
 
+function getCourseById(id: string) {
+    return allCourses.find((c: any) => c.id === id) || null;
+}
+
+function courseBadgeHtml(courseId: string | undefined): string {
+    if (!courseId) return '';
+    const course = getCourseById(courseId);
+    if (!course) return '';
+    const color = course.color || '#667eea';
+    const label = course.code || course.name;
+    return `<span class="course-badge" style="background:${escapeHtml(color)}">${escapeHtml(label)}</span>`;
+}
+
 // Display tasks in the list
 function displayTasks(tasks: any[]) {
-    const oneTime = tasks.filter(t => t.type === 'ONE_TIME');
-    const recurringInstances = expandRecurringTasks(tasks);
+    // Apply course filter
+    const filtered = activeCourseFilter
+        ? tasks.filter(t => t.course_id === activeCourseFilter)
+        : tasks;
+
+    const oneTime = filtered.filter(t => t.type === 'ONE_TIME');
+    const recurringInstances = expandRecurringTasks(filtered);
 
     const allItems = [
         ...oneTime.map(t => ({ ...t, _sortDate: new Date(t.date) })),
@@ -371,7 +486,7 @@ function displayTasks(tasks: any[]) {
         return `
             <div class="${taskCardClass}">
                 <div class="task-header">
-                    <div class="task-title">${escapeHtml(task.title)}</div>
+                    <div class="task-title">${escapeHtml(task.title)}${courseBadgeHtml(task.course_id)}</div>
                     <span class="task-type ${task.type === 'ONE_TIME' ? 'one-time' : 'recurring'}">${task.type === 'ONE_TIME' ? 'ONE TIME' : 'RECURRING'}</span>
                 </div>
                 ${taskDetailsHtml}
@@ -590,6 +705,64 @@ if (nextMonthBtn) {
     });
 }
 
+// Course management UI wiring
+const toggleAddCourseBtn = document.getElementById('toggleAddCourse') as HTMLButtonElement | null;
+const addCourseFormEl = document.getElementById('addCourseForm') as HTMLElement | null;
+const saveCourseBtn = document.getElementById('saveCourseBtn') as HTMLButtonElement | null;
+const cancelCourseBtn = document.getElementById('cancelCourseBtn') as HTMLButtonElement | null;
+const courseNameInput = document.getElementById('courseName') as HTMLInputElement | null;
+const courseCodeInput = document.getElementById('courseCode') as HTMLInputElement | null;
+const courseColorInput = document.getElementById('courseColor') as HTMLInputElement | null;
+
+if (toggleAddCourseBtn && addCourseFormEl) {
+    toggleAddCourseBtn.addEventListener('click', () => {
+        const isVisible = addCourseFormEl.style.display !== 'none';
+        addCourseFormEl.style.display = isVisible ? 'none' : 'block';
+    });
+}
+
+if (cancelCourseBtn && addCourseFormEl) {
+    cancelCourseBtn.addEventListener('click', () => {
+        addCourseFormEl.style.display = 'none';
+        if (courseNameInput) courseNameInput.value = '';
+        if (courseCodeInput) courseCodeInput.value = '';
+        if (courseColorInput) courseColorInput.value = '#667eea';
+    });
+}
+
+if (saveCourseBtn) {
+    saveCourseBtn.addEventListener('click', async () => {
+        const name = courseNameInput?.value.trim() || '';
+        if (!name) {
+            showFeedback('Course name is required', 'error');
+            return;
+        }
+        const code = courseCodeInput?.value.trim() || undefined;
+        const color = courseColorInput?.value || '#667eea';
+        try {
+            const response = await fetch('/api/courses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, code, color }),
+            });
+            const result = await response.json();
+            if (result.success) {
+                if (addCourseFormEl) addCourseFormEl.style.display = 'none';
+                if (courseNameInput) courseNameInput.value = '';
+                if (courseCodeInput) courseCodeInput.value = '';
+                if (courseColorInput) courseColorInput.value = '#667eea';
+                showFeedback('Course created!', 'success');
+                await loadCourses();
+            } else {
+                showFeedback(result.error || 'Failed to create course', 'error');
+            }
+        } catch {
+            showFeedback('Error creating course', 'error');
+        }
+    });
+}
+
 // Load tasks on page load
+loadCourses();
 loadTasks();
 updateTaskTypeDisplay();

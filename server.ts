@@ -4,7 +4,7 @@ import {deleteSession, validateSession, login, register} from './backend/auth';
 import { initializeDB } from './backend/dbManager';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { getTasks, deleteTask, updateTaskCompletion, createTask, updateTask, toggleRecurringInstance } from './backend/API';
+import { getTasks, deleteTask, updateTaskCompletion, createTask, updateTask, toggleRecurringInstance, createCourse, getCourses, deleteCourse } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -112,13 +112,13 @@ app.get("/dashboard/", (req, res) => {
 // DASHBOARD API ENDPOINTS //
 /////////////////////////////
 
-// create task, expects { type, title, description, date, days, time }
+// create task, expects { type, title, description, date, days, time, courseId? }
 app.post("/api/tasks", (req, res) => {
-  const { type, title, description, date, days, time } = req.body;
+  const { type, title, description, date, days, time, courseId } = req.body;
   try {
     const sessionID = retrieveSessionID(req.headers.cookie);
     const UID = validateSession(sessionID);
-    createTask(type, title, UID, date, days, time, description);
+    createTask(type, title, UID, date, days, time, description, courseId);
 
     res.status(201).json({ success: true });
   } catch (e) {
@@ -157,12 +157,53 @@ app.delete("/api/tasks/:id", (req, res) => {
 // update task (both one-time and recurring)
 app.put("/api/tasks/:id", (req, res) => {
   const taskId = req.params.id;
-  const { type, title, description, date, days, time } = req.body;
+  const { type, title, description, date, days, time, courseId } = req.body;
   try {
     const sessionID = retrieveSessionID(req.headers.cookie);
     const UID = validateSession(sessionID);
 
-    updateTask(UID, taskId, type, title, description, date, days, time);
+    updateTask(UID, taskId, type, title, description, date, days, time, courseId);
+    res.status(200).json({ success: true });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+// get courses
+app.get("/api/courses", (req, res) => {
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+    const courses = getCourses(UID);
+    res.status(200).json({ success: true, courses });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+// create course, expects { name, code?, color? }
+app.post("/api/courses", (req, res) => {
+  const { name, code, color } = req.body;
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+    createCourse(name, UID, code, color);
+    res.status(201).json({ success: true });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+// delete course
+app.delete("/api/courses/:id", (req, res) => {
+  const courseId = req.params.id;
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+    deleteCourse(UID, courseId);
     res.status(200).json({ success: true });
   } catch (e) {
     const error = e as AppError;
