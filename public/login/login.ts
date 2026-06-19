@@ -1,3 +1,4 @@
+const feedback = document.getElementById("feedback") as HTMLElement | null;
 const toggleBtn = document.getElementById("toggleBtn") as HTMLElement | null;
 const submitBtn = document.getElementById("submitBtn") as HTMLInputElement | null;
 const confirimPasswordLabel = document.getElementById("confirmPasswordLabel") as HTMLElement | null;

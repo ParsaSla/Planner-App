@@ -10,7 +10,8 @@ const app = express();
 const port = 8080;
 
 const loginPage = path.join(__dirname, '/public/login/login.html');
-const dashboardPage = path.join(__dirname, '/public/dashboard/dashboard.html');
+// The dashboard is now the React (Vite) build output in dist/frontend.
+const dashboardPage = path.join(__dirname, '/dist/frontend/index.html');
 
 initializeDB(); 
 
@@ -24,6 +25,9 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(express.static(path.join(__dirname, '/public/')));
 app.use('/dist', express.static(path.join(__dirname, 'dist')));
+// Serve the React dashboard's built assets (JS/CSS under /assets, etc.).
+// `index: false` so it never hijacks the auth-gated routes below.
+app.use(express.static(path.join(__dirname, '/dist/frontend/'), { index: false }));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
