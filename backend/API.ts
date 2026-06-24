@@ -20,6 +20,8 @@ import {
     getCoursesByUID,
     getCourseById,
     deleteCourseById,
+    getSettingsByUID,
+    upsertSettings,
     createOneTimeEventRow,
     createRecurringEventRow,
     getOneTimeEventsByUID,
@@ -31,11 +33,15 @@ import {
     setRecurringEventInstanceCompletion,
 } from './dbManager';
 
-function createOneTimeTask(title: string, UID: string, date: Date, description?: string, courseId?: string): void {
-    const user = getUserByUID(UID);
-    if (!user) {
+/** Throws if no user exists for the given UID. */
+function requireUser(UID: string): void {
+    if (!getUserByUID(UID)) {
         throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
     }
+}
+
+function createOneTimeTask(title: string, UID: string, date: Date, description?: string, courseId?: string): void {
+    requireUser(UID);
 
     createOneTimeTaskRow({
         id: crypto.randomUUID(),
@@ -51,10 +57,7 @@ function createOneTimeTask(title: string, UID: string, date: Date, description?:
 }
 
 function createRecurringTask(title: string, UID: string, days: Array<DAY>, time: TimeOfDay, description?: string, courseId?: string): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     assertDaysType(days);
     assertTimeOfDayType(time);
@@ -87,19 +90,13 @@ export function createTask(type: TaskType, title: string, UID: string, date: str
 }
 
 export function getTasks(UID: string): Task[] {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     return [...getOneTimeTasksByUID(UID), ...getRecurringTasksByUID(UID)];
 }
 
 export function deleteTask(UID: string, taskId: string): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     const deletedCount = deleteTaskById(UID, taskId);
     if (deletedCount === 0) {
@@ -108,10 +105,7 @@ export function deleteTask(UID: string, taskId: string): void {
 }
 
 export function updateTaskCompletion(UID: string, taskId: string, completed: boolean): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     const updatedCount = updateOneTimeTaskCompletion(UID, taskId, completed ? 1 : 0);
     if (updatedCount === 0) {
@@ -120,10 +114,7 @@ export function updateTaskCompletion(UID: string, taskId: string, completed: boo
 }
 
 export function toggleRecurringInstance(UID: string, taskId: string, instanceDate: string, completed: boolean): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
     if (!instanceDate || typeof instanceDate !== 'string') {
         throw new AppError('Instance date is required', ERRORS.INVALID_TASK_DATA);
     }
@@ -141,10 +132,7 @@ export function updateTask(
     time?: TimeOfDay,
     courseId?: string
 ): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     assertTaskType(type);
     if (!title || !title.trim()) {
@@ -186,10 +174,7 @@ export function updateTask(
 }
 
 function createOneTimeEvent(title: string, UID: string, start: Date, end: Date, description?: string, courseId?: string): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     if (end.getTime() < start.getTime()) {
         throw new AppError('Event end must be after its start', ERRORS.INVALID_EVENT_DATA);
@@ -209,10 +194,7 @@ function createOneTimeEvent(title: string, UID: string, start: Date, end: Date, 
 }
 
 function createRecurringEvent(title: string, UID: string, days: Array<DAY>, startTime: TimeOfDay, endTime: TimeOfDay, description?: string, courseId?: string): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     assertDaysType(days);
     assertTimeOfDayType(startTime);
@@ -274,19 +256,13 @@ export function createEvent(
 }
 
 export function getEvents(UID: string): Task[] {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     return [...getOneTimeEventsByUID(UID), ...getRecurringEventsByUID(UID)];
 }
 
 export function deleteEvent(UID: string, eventId: string): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     const deletedCount = deleteEventById(UID, eventId);
     if (deletedCount === 0) {
@@ -295,10 +271,7 @@ export function deleteEvent(UID: string, eventId: string): void {
 }
 
 export function updateEventCompletion(UID: string, eventId: string, completed: boolean): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     const updatedCount = updateOneTimeEventCompletion(UID, eventId, completed ? 1 : 0);
     if (updatedCount === 0) {
@@ -307,10 +280,7 @@ export function updateEventCompletion(UID: string, eventId: string, completed: b
 }
 
 export function toggleRecurringEventInstance(UID: string, eventId: string, instanceDate: string, completed: boolean): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
     if (!instanceDate || typeof instanceDate !== 'string') {
         throw new AppError('Instance date is required', ERRORS.INVALID_EVENT_DATA);
     }
@@ -330,10 +300,7 @@ export function updateEvent(
     endTime?: TimeOfDay,
     courseId?: string
 ): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
 
     assertTaskType(type);
     if (!title || !title.trim()) {
@@ -385,10 +352,7 @@ export function createCourse(name: string, UID: string, code?: string, color?: s
     if (!name || !name.trim()) {
         throw new AppError('Course name is required', ERRORS.INVALID_COURSE_DATA);
     }
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
     createCourseRow({
         id: crypto.randomUUID(),
         uid: UID,
@@ -400,10 +364,7 @@ export function createCourse(name: string, UID: string, code?: string, color?: s
 }
 
 export function getCourses(UID: string): Course[] {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
     return getCoursesByUID(UID).map(row => ({
         id: row.id,
         name: row.course_name,
@@ -413,13 +374,102 @@ export function getCourses(UID: string): Course[] {
 }
 
 export function deleteCourse(UID: string, courseId: string): void {
-    const user = getUserByUID(UID);
-    if (!user) {
-        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
-    }
+    requireUser(UID);
     const course = getCourseById(UID, courseId);
     if (!course) {
         throw new AppError('Course not found', ERRORS.COURSE_NOT_FOUND);
     }
     deleteCourseById(UID, courseId);
+}
+
+// SETTINGS
+
+interface TermDate {
+    day: number;
+    month: number;
+}
+
+interface UniversitySettings {
+    teachingPeriodWeeks: number;
+    termWeeks: number;
+    termSystem: string;
+    termStartDates: TermDate[];
+    flexWeek: number;
+}
+
+const TERM_SYSTEMS = ['SEMESTER', 'TRIMESTER'];
+
+// Mirrors DEFAULT_SETTINGS on the frontend — returned when a user has no saved settings yet.
+const DEFAULT_UNIVERSITY_SETTINGS: UniversitySettings = {
+    teachingPeriodWeeks: 12,
+    termWeeks: 13,
+    termSystem: 'SEMESTER',
+    termStartDates: [{ day: 0, month: 0 }, { day: 0, month: 0 }],
+    flexWeek: 6,
+};
+
+export function getSettings(UID: string): { university: UniversitySettings } {
+    requireUser(UID);
+
+    const row = getSettingsByUID(UID);
+    if (!row) {
+        return { university: DEFAULT_UNIVERSITY_SETTINGS };
+    }
+
+    return {
+        university: {
+            teachingPeriodWeeks: row.teaching_period_weeks,
+            termWeeks: row.term_weeks,
+            termSystem: row.term_system,
+            flexWeek: row.flex_week,
+            termStartDates: row.term_start_dates.map(d => ({ day: d.day, month: d.month })),
+        },
+    };
+}
+
+export function saveSettings(UID: string, university: UniversitySettings): void {
+    requireUser(UID);
+
+    if (!university || typeof university !== 'object') {
+        throw new AppError('University settings are required', ERRORS.INVALID_SETTINGS_DATA);
+    }
+
+    const { teachingPeriodWeeks, termWeeks, termSystem, termStartDates, flexWeek } = university;
+
+    if (!TERM_SYSTEMS.includes(termSystem)) {
+        throw new AppError('Invalid term system', ERRORS.INVALID_SETTINGS_DATA);
+    }
+    if (!Number.isInteger(teachingPeriodWeeks) || teachingPeriodWeeks < 1) {
+        throw new AppError('Teaching period must be at least 1 week', ERRORS.INVALID_SETTINGS_DATA);
+    }
+    if (!Number.isInteger(termWeeks) || termWeeks < 1) {
+        throw new AppError('Term duration must be at least 1 week', ERRORS.INVALID_SETTINGS_DATA);
+    }
+    if (!Number.isInteger(flexWeek) || flexWeek < 1 || flexWeek > termWeeks) {
+        throw new AppError('Flex week must be within the term duration', ERRORS.INVALID_SETTINGS_DATA);
+    }
+    if (!Array.isArray(termStartDates)) {
+        throw new AppError('Term start dates are required', ERRORS.INVALID_SETTINGS_DATA);
+    }
+
+    // Size the stored dates to the term system (2 for semester, 3 for trimester).
+    const expectedTerms = termSystem === 'TRIMESTER' ? 3 : 2;
+    const normalizedDates = Array.from({ length: expectedTerms }, (_, i) => {
+        const d = termStartDates[i] ?? { day: 0, month: 0 };
+        const day = Number(d.day) || 0;
+        const month = Number(d.month) || 0;
+        if (day < 0 || day > 31 || month < 0 || month > 12) {
+            throw new AppError('Invalid term start date', ERRORS.INVALID_SETTINGS_DATA);
+        }
+        return { day, month };
+    });
+
+    upsertSettings({
+        uid: UID,
+        teaching_period_weeks: teachingPeriodWeeks,
+        term_weeks: termWeeks,
+        term_system: termSystem,
+        flex_week: flexWeek,
+        term_start_dates: normalizedDates,
+    });
 }

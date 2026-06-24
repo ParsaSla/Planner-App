@@ -1,4 +1,5 @@
 import type { Task, Group, TaskInput, GroupInput, PlannerEvent, EventInput } from './types';
+import type { Settings } from './settings';
 
 class ApiError extends Error {
   status: number;
@@ -116,6 +117,16 @@ export const api = {
 
   async deleteGroup(id: string): Promise<void> {
     await request(`/api/courses/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
+  // ---- Settings ----
+  async getSettings(): Promise<Settings> {
+    const data = await request<{ success: boolean; settings: Settings }>('/api/settings');
+    return data.settings;
+  },
+
+  async saveSettings(settings: Settings): Promise<void> {
+    await request('/api/settings', { method: 'PUT', body: JSON.stringify(settings) });
   },
 
   // ---- Auth ----

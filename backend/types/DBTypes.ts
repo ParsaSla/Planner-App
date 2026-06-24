@@ -13,6 +13,33 @@ export interface SessionRow {
     expires: string;
 }
 
+
+export interface CourseRow {
+    id: string;
+    uid: string;
+    course_name: string;
+    course_code?: string;
+    color_code?: string;
+    created_at: string;
+}
+
+export interface SettingsRow {
+    uid: string;
+    teaching_period_weeks: number;
+    term_weeks: number;
+    term_system: string;
+    flex_week: number;
+    updated_at: string;
+}
+
+export interface SettingsTermDateRow {
+    uid: string;
+    term_index: number;
+    day: number;
+    month: number;
+}
+
+// TASKS AND EVENTS
 export interface TaskRow {
     id: string;
     uid: string;
@@ -67,13 +94,4 @@ export interface RecurringEventRow {
     active: number;
     created_at: string;
     updated_at?: string;
-}
-
-export interface CourseRow {
-    id: string;
-    uid: string;
-    course_name: string;
-    course_code?: string;
-    color_code?: string;
-    created_at: string;
 }

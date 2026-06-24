@@ -12,6 +12,12 @@ import {
 } from './dbManager';
 import { UserRow } from './types/DBTypes';
 
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function hashPassword(password: string, salt: string): string {
+    return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+}
+
 const PASSWORD_RULES: { test: (pw: string) => boolean; message: string }[] = [
     { test: (pw) => pw.length >= 8, message: 'at least 8 characters' },
     { test: (pw) => /[A-Z]/.test(pw), message: 'an uppercase letter' },
@@ -29,13 +35,12 @@ function validatePassword(password: string): void {
 
 function createUser(username: string, password: string): UserRow {
     const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
 
     return {
         username,
-        password_hash: hash,
+        password_hash: hashPassword(password, salt),
         salt,
-        uid: generateUID(),
+        uid: crypto.randomUUID(),
         created_at: new Date().toISOString(),
     };
 }
@@ -54,24 +59,19 @@ export function register(username: string, password: string): string {
     return userRecord.uid;
 }
 
-function generateUID() {
-    return crypto.randomUUID();
-}
-
-export function login(username: string, password: string) {
+export function login(username: string, password: string): string {
     username = username.toLowerCase();
     const user = getUserByUsername(username);
     if (!user) {
         throw new AppError('Invalid credentials', ERRORS.INVALID_CREDENTIALS);
     }
 
-    const hash = crypto.pbkdf2Sync(password, user.salt, 1000, 64, 'sha512').toString('hex');
-    if (hash !== user.password_hash) {
+    if (hashPassword(password, user.salt) !== user.password_hash) {
         throw new AppError('Invalid credentials', ERRORS.INVALID_CREDENTIALS);
     }
 
     const sid = crypto.randomUUID();
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const expires = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
     createSession(sid, user.uid, expires);
     updateUserLastLogin(user.uid, new Date().toISOString());
 
@@ -94,17 +94,6 @@ export function validateSession(SID: string): string {
     throw new AppError('Invalid session', ERRORS.INVALID_CREDENTIALS);
 }
 
-export function deleteSession(SID: string) {
+export function deleteSession(SID: string): void {
     removeSession(SID);
 }
-
-// export function getUsername(UID: string) {
-//     const users = readDB();
-//     return users.find(user => user.UID === UID)?.username;
-// }
-
-// appendDB(user1);
-// appendDB(user2);
-// readDB();
-
-//console.log(createUser("ps","pp"));

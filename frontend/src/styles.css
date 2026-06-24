@@ -238,6 +238,13 @@ button {
   font-size: 13px;
   margin-top: 2px;
 }
+.side-settings {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding-top: 14px;
+  margin-bottom: -4px;
+}
 
 /* ---------- Main / tasks ---------- */
 .main {
@@ -639,6 +646,8 @@ button {
   color: var(--text);
   font-size: 14px;
   font-family: inherit;
+  /* Render native widgets (number spinners, date/time pickers) in dark mode. */
+  color-scheme: dark;
 }
 .field textarea {
   resize: vertical;
@@ -776,6 +785,96 @@ button {
   font-size: 13.5px;
   color: var(--text-dim);
   line-height: 1.5;
+}
+
+/* ---------- Settings modal ---------- */
+.settings-modal {
+  width: 620px;
+}
+.settings-body {
+  display: flex;
+  min-height: 360px;
+}
+.settings-tabs {
+  flex: 0 0 168px;
+  border-right: 1px solid var(--border);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  text-align: left;
+  width: 100%;
+  transition: 0.13s;
+}
+.settings-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.settings-tab.active {
+  background: var(--bg-elev2);
+  color: var(--text);
+}
+.settings-tab .ico {
+  width: 18px;
+  text-align: center;
+}
+.settings-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.settings-pane {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+.field-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 7px;
+  line-height: 1.4;
+}
+.settings-terms {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.settings-term-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings-term-label {
+  flex: 0 0 70px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.settings-term-row select {
+  flex: 1;
+}
+.settings-saved {
+  margin-right: auto;
+  align-self: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 /* ---------- Calendar overlay ---------- */

@@ -9,9 +9,10 @@ interface Props {
   selection: Selection;
   onSelect: (s: Selection) => void;
   onNewGroup: () => void;
+  onOpenSettings: () => void;
 }
 
-export default function Sidebar({ store, selection, onSelect, onNewGroup }: Props) {
+export default function Sidebar({ store, selection, onSelect, onNewGroup, onOpenSettings }: Props) {
   const { tasks, events, groups } = store;
   const todayKey = dayKey(new Date());
   const todayName = dayName(new Date());
@@ -103,6 +104,10 @@ export default function Sidebar({ store, selection, onSelect, onNewGroup }: Prop
       })}
       <button className="side-item side-add" onClick={onNewGroup}>
         <span className="ico">＋</span> <span className="label">New group</span>
+      </button>
+
+      <button className="side-item side-settings" onClick={onOpenSettings}>
+        <span className="ico">⚙️</span> <span className="label">Settings</span>
       </button>
     </aside>
   );

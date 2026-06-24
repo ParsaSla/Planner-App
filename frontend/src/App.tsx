@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from './useStore';
+import { useSettings } from './settings';
 import type { Selection } from './nav';
 import type { PlannerItem } from './types';
 import { isEventItem } from './types';
@@ -10,6 +11,7 @@ import Fab from './components/Fab';
 import type { CreateKind } from './components/Fab';
 import CreateModal from './components/CreateModal';
 import CalendarOverlay from './components/CalendarOverlay';
+import SettingsModal from './components/SettingsModal';
 
 interface ModalState {
   initial: CreateKind;
@@ -18,9 +20,11 @@ interface ModalState {
 
 export default function App() {
   const store = useStore();
+  const settings = useSettings();
   const [selection, setSelection] = useState<Selection>({ kind: 'view', view: 'today' });
   const [query, setQuery] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [modal, setModal] = useState<ModalState | null>(null);
 
   const openCreate = (kind: CreateKind) => setModal({ initial: kind });
@@ -37,6 +41,7 @@ export default function App() {
           selection={selection}
           onSelect={setSelection}
           onNewGroup={() => openCreate('group')}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         {store.loading ? (
@@ -72,6 +77,8 @@ export default function App() {
       {calendarOpen && (
         <CalendarOverlay store={store} onClose={() => setCalendarOpen(false)} onEdit={openEdit} />
       )}
+
+      {settingsOpen && <SettingsModal settings={settings} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

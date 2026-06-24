@@ -12,6 +12,7 @@ export const ERRORS = {
     INVALID_COURSE_DATA: 'INVALID_COURSE_DATA',
     EVENT_NOT_FOUND: 'EVENT_NOT_FOUND',
     INVALID_EVENT_DATA: 'INVALID_EVENT_DATA',
+    INVALID_SETTINGS_DATA: 'INVALID_SETTINGS_DATA',
 };
 export type ErrorType = typeof ERRORS[keyof typeof ERRORS];
 
@@ -37,6 +38,7 @@ const HttpMap = {
     [ERRORS.INVALID_COURSE_DATA]: 400,
     [ERRORS.EVENT_NOT_FOUND]: 404,
     [ERRORS.INVALID_EVENT_DATA]: 400,
+    [ERRORS.INVALID_SETTINGS_DATA]: 400,
 };
 
 export function getStatusCode(appError: AppError): number {
