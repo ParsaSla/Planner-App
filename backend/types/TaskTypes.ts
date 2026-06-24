@@ -32,6 +32,19 @@ export interface RecurringTask extends Task {
     completedDates: string[];
 }
 
+export interface OneTimeEvent extends Task {
+    start: Date;
+    end: Date;
+    completed: boolean;
+}
+
+export interface RecurringEvent extends Task {
+    days: Array<DAY>;
+    startTime: TimeOfDay;
+    endTime: TimeOfDay;
+    completedDates: string[];
+}
+
 export function assertTaskType(value: any): void {
   if (!Object.values(TASKS).includes(value)) {
     throw new Error('Invalid task type');

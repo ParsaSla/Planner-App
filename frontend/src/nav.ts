@@ -1,5 +1,5 @@
 // Which collection of tasks the main panel is showing.
-export type SmartView = 'today' | 'all' | 'recurring' | 'completed';
+export type SmartView = 'today' | 'all' | 'recurring' | 'completed' | 'events';
 
 export type Selection =
   | { kind: 'view'; view: SmartView }

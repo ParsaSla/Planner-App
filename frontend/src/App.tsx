@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useStore } from './useStore';
 import type { Selection } from './nav';
-import type { Task } from './types';
+import type { PlannerItem } from './types';
+import { isEventItem } from './types';
 import TopBar from './components/TopBar';
 import Sidebar from './components/Sidebar';
 import TaskView from './components/TaskView';
@@ -12,7 +13,7 @@ import CalendarOverlay from './components/CalendarOverlay';
 
 interface ModalState {
   initial: CreateKind;
-  editingTask?: Task;
+  editingItem?: PlannerItem;
 }
 
 export default function App() {
@@ -23,7 +24,8 @@ export default function App() {
   const [modal, setModal] = useState<ModalState | null>(null);
 
   const openCreate = (kind: CreateKind) => setModal({ initial: kind });
-  const openEdit = (task: Task) => setModal({ initial: 'task', editingTask: task });
+  const openEdit = (item: PlannerItem) =>
+    setModal({ initial: isEventItem(item) ? 'event' : 'task', editingItem: item });
 
   return (
     <div className="app">
@@ -52,13 +54,7 @@ export default function App() {
             </div>
           </main>
         ) : (
-          <TaskView
-            store={store}
-            selection={selection}
-            query={query}
-            onEdit={openEdit}
-            onCreate={() => openCreate('task')}
-          />
+          <TaskView store={store} selection={selection} query={query} onEdit={openEdit} />
         )}
       </div>
 
@@ -68,7 +64,7 @@ export default function App() {
         <CreateModal
           store={store}
           initial={modal.initial}
-          editingTask={modal.editingTask}
+          editingItem={modal.editingItem}
           onClose={() => setModal(null)}
         />
       )}

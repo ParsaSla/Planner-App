@@ -15,7 +15,7 @@ describe('backend/API', () => {
   });
 
   it('creates, retrieves, and deletes one-time and recurring tasks', () => {
-    const uid = register('apitestuser', 'password123');
+    const uid = register('apitestuser', 'Password123');
 
     createTask(
       TASKS.ONE_TIME,

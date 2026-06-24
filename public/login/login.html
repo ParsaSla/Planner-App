@@ -3,30 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planner App - Login</title>
+    <title>Planner — Login</title>
     <link rel="stylesheet" href="login.css">
 </head>
 <body>
     <div class="login-container">
         <div class="login-header">
-            <h1>Planner App</h1>
-            <p>Organize your tasks and manage your time efficiently</p>
+            <div class="brand"><span class="logo">✓</span> Planner</div>
+            <h1 id="headerTitle">Welcome back</h1>
+            <p id="headerSubtitle">Sign in to organize your tasks and manage your time.</p>
         </div>
         <div class="login-content">
             <form id="authForm" method="post">
                 <div class="form-group">
-                    <label for="username">Username:</label>
-                    <input type="text" id="username" name="username" required>
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="yourname" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="password">Password:</label>
-                    <input type="password" id="password" name="password" required>
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="••••••••" required>
                 </div>
 
+                <ul class="password-guide" id="passwordGuide" aria-live="polite">
+                    <li data-rule="length"><span class="check">○</span> At least 8 characters</li>
+                    <li data-rule="upper"><span class="check">○</span> One uppercase letter</li>
+                    <li data-rule="lower"><span class="check">○</span> One lowercase letter</li>
+                    <li data-rule="number"><span class="check">○</span> One number</li>
+                </ul>
+
                 <div class="confirm-password-group form-group" id="confirmPasswordGroup">
-                    <label for="confirmPassword" id="confirmPasswordLabel">Confirm Password:</label>
-                    <input type="password" id="confirmPassword" name="confirmPassword">
+                    <label for="confirmPassword" id="confirmPasswordLabel">Confirm Password</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" placeholder="••••••••">
                 </div>
 
                 <input type="submit" value="Login" id="submitBtn">

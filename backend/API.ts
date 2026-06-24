@@ -20,9 +20,18 @@ import {
     getCoursesByUID,
     getCourseById,
     deleteCourseById,
+    createOneTimeEventRow,
+    createRecurringEventRow,
+    getOneTimeEventsByUID,
+    getRecurringEventsByUID,
+    deleteEventById,
+    updateOneTimeEventCompletion,
+    updateOneTimeEventRow,
+    updateRecurringEventRow,
+    setRecurringEventInstanceCompletion,
 } from './dbManager';
 
-export function createOneTimeTask(title: string, UID: string, date: Date, description?: string, courseId?: string): void {
+function createOneTimeTask(title: string, UID: string, date: Date, description?: string, courseId?: string): void {
     const user = getUserByUID(UID);
     if (!user) {
         throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
@@ -41,7 +50,7 @@ export function createOneTimeTask(title: string, UID: string, date: Date, descri
     });
 }
 
-export function createRecurringTask(title: string, UID: string, days: Array<DAY>, time: TimeOfDay, description?: string, courseId?: string): void {
+function createRecurringTask(title: string, UID: string, days: Array<DAY>, time: TimeOfDay, description?: string, courseId?: string): void {
     const user = getUserByUID(UID);
     if (!user) {
         throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
@@ -173,6 +182,202 @@ export function updateTask(
 
     if (updatedCount === 0) {
         throw new AppError('Task not found', ERRORS.TASK_NOT_FOUND);
+    }
+}
+
+function createOneTimeEvent(title: string, UID: string, start: Date, end: Date, description?: string, courseId?: string): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    if (end.getTime() < start.getTime()) {
+        throw new AppError('Event end must be after its start', ERRORS.INVALID_EVENT_DATA);
+    }
+
+    createOneTimeEventRow({
+        id: crypto.randomUUID(),
+        uid: UID,
+        course_id: courseId,
+        title,
+        description,
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        completed: 0,
+        created_at: new Date().toISOString(),
+    });
+}
+
+function createRecurringEvent(title: string, UID: string, days: Array<DAY>, startTime: TimeOfDay, endTime: TimeOfDay, description?: string, courseId?: string): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    assertDaysType(days);
+    assertTimeOfDayType(startTime);
+    assertTimeOfDayType(endTime);
+
+    createRecurringEventRow({
+        id: crypto.randomUUID(),
+        uid: UID,
+        course_id: courseId,
+        title,
+        description,
+        days_of_week: JSON.stringify(days),
+        start_hour: startTime.hour,
+        start_minute: startTime.minute,
+        end_hour: endTime.hour,
+        end_minute: endTime.minute,
+        active: 1,
+        created_at: new Date().toISOString(),
+    });
+}
+
+export function createEvent(
+    type: TaskType,
+    title: string,
+    UID: string,
+    start: string,
+    end: string,
+    days: Array<DAY>,
+    startTime: TimeOfDay,
+    endTime: TimeOfDay,
+    description?: string,
+    courseId?: string
+): void {
+    assertTaskType(type);
+
+    if (!title || !title.trim()) {
+        throw new AppError('Event title is required', ERRORS.INVALID_EVENT_DATA);
+    }
+
+    if (type === TASKS.ONE_TIME) {
+        if (!start || !end) {
+            throw new AppError('Start and end are required for one-time events', ERRORS.INVALID_EVENT_DATA);
+        }
+        const startObj = convertToDateObj(start);
+        const endObj = convertToDateObj(end);
+        createOneTimeEvent(title, UID, startObj, endObj, description, courseId);
+    } else if (type === TASKS.RECURRING) {
+        if (!days || days.length === 0) {
+            throw new AppError('At least one day is required for recurring events', ERRORS.INVALID_EVENT_DATA);
+        }
+        if (!startTime || !endTime) {
+            throw new AppError('Start and end times are required for recurring events', ERRORS.INVALID_EVENT_DATA);
+        }
+        assertDaysType(days);
+        assertTimeOfDayType(startTime);
+        assertTimeOfDayType(endTime);
+        createRecurringEvent(title, UID, days, startTime, endTime, description, courseId);
+    }
+}
+
+export function getEvents(UID: string): Task[] {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    return [...getOneTimeEventsByUID(UID), ...getRecurringEventsByUID(UID)];
+}
+
+export function deleteEvent(UID: string, eventId: string): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    const deletedCount = deleteEventById(UID, eventId);
+    if (deletedCount === 0) {
+        throw new AppError('Event not found', ERRORS.EVENT_NOT_FOUND);
+    }
+}
+
+export function updateEventCompletion(UID: string, eventId: string, completed: boolean): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    const updatedCount = updateOneTimeEventCompletion(UID, eventId, completed ? 1 : 0);
+    if (updatedCount === 0) {
+        throw new AppError('Event not found', ERRORS.EVENT_NOT_FOUND);
+    }
+}
+
+export function toggleRecurringEventInstance(UID: string, eventId: string, instanceDate: string, completed: boolean): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+    if (!instanceDate || typeof instanceDate !== 'string') {
+        throw new AppError('Instance date is required', ERRORS.INVALID_EVENT_DATA);
+    }
+    setRecurringEventInstanceCompletion(UID, eventId, instanceDate, completed);
+}
+
+export function updateEvent(
+    UID: string,
+    eventId: string,
+    type: TaskType,
+    title: string,
+    description: string | undefined,
+    start?: string,
+    end?: string,
+    days?: Array<DAY>,
+    startTime?: TimeOfDay,
+    endTime?: TimeOfDay,
+    courseId?: string
+): void {
+    const user = getUserByUID(UID);
+    if (!user) {
+        throw new AppError('User not found', ERRORS.INVALID_CREDENTIALS);
+    }
+
+    assertTaskType(type);
+    if (!title || !title.trim()) {
+        throw new AppError('Event title is required', ERRORS.INVALID_EVENT_DATA);
+    }
+
+    let updatedCount = 0;
+
+    if (type === TASKS.ONE_TIME) {
+        if (!start || !end) {
+            throw new AppError('Start and end are required for one-time events', ERRORS.INVALID_EVENT_DATA);
+        }
+        const startObj = convertToDateObj(start);
+        const endObj = convertToDateObj(end);
+        if (endObj.getTime() < startObj.getTime()) {
+            throw new AppError('Event end must be after its start', ERRORS.INVALID_EVENT_DATA);
+        }
+        updatedCount = updateOneTimeEventRow(UID, eventId, title, description, startObj.toISOString(), endObj.toISOString(), courseId);
+    } else {
+        if (!days || days.length === 0) {
+            throw new AppError('At least one day is required for recurring events', ERRORS.INVALID_EVENT_DATA);
+        }
+        if (!startTime || !endTime) {
+            throw new AppError('Start and end times are required for recurring events', ERRORS.INVALID_EVENT_DATA);
+        }
+        assertDaysType(days);
+        assertTimeOfDayType(startTime);
+        assertTimeOfDayType(endTime);
+        updatedCount = updateRecurringEventRow(
+            UID,
+            eventId,
+            title,
+            description,
+            JSON.stringify(days),
+            startTime.hour,
+            startTime.minute,
+            endTime.hour,
+            endTime.minute,
+            courseId
+        );
+    }
+
+    if (updatedCount === 0) {
+        throw new AppError('Event not found', ERRORS.EVENT_NOT_FOUND);
     }
 }
 

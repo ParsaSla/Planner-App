@@ -40,6 +40,35 @@ export interface RecurringTaskRow {
     updated_at?: string;
 }
 
+export interface EventRow {
+    id: string;
+    uid: string;
+    course_id?: string;
+    title: string;
+    description?: string;
+    start_time: string;
+    end_time: string;
+    completed: number;
+    created_at: string;
+    updated_at?: string;
+}
+
+export interface RecurringEventRow {
+    id: string;
+    uid: string;
+    course_id?: string;
+    title: string;
+    description?: string;
+    days_of_week?: string;
+    start_hour?: number;
+    start_minute?: number;
+    end_hour?: number;
+    end_minute?: number;
+    active: number;
+    created_at: string;
+    updated_at?: string;
+}
+
 export interface CourseRow {
     id: string;
     uid: string;

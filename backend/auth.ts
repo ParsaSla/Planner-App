@@ -12,6 +12,21 @@ import {
 } from './dbManager';
 import { UserRow } from './types/DBTypes';
 
+const PASSWORD_RULES: { test: (pw: string) => boolean; message: string }[] = [
+    { test: (pw) => pw.length >= 8, message: 'at least 8 characters' },
+    { test: (pw) => /[A-Z]/.test(pw), message: 'an uppercase letter' },
+    { test: (pw) => /[a-z]/.test(pw), message: 'a lowercase letter' },
+    { test: (pw) => /[0-9]/.test(pw), message: 'a number' },
+];
+
+function validatePassword(password: string): void {
+    const failed = PASSWORD_RULES.filter(({ test }) => !test(password));
+    if (failed.length > 0) {
+        const requirements = failed.map(({ message }) => message).join(', ');
+        throw new AppError(`Password must contain ${requirements}.`, ERRORS.INVALID_PASSWORD);
+    }
+}
+
 function createUser(username: string, password: string): UserRow {
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
@@ -31,6 +46,8 @@ export function register(username: string, password: string): string {
     if (existingUser) {
         throw new AppError('User already exists', ERRORS.USER_ALREADY_EXISTS);
     }
+
+    validatePassword(password);
 
     const userRecord = createUser(username, password);
     createUserRow(userRecord);

@@ -73,6 +73,54 @@ CREATE TABLE IF NOT EXISTS recurring_task_completions (
   FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
 );
 
+-- Events Table (one-time events with a start and end)
+-- Like tasks but time-blocked: they span a start_time..end_time rather than a
+-- single date. type is always ONE_TIME for rows in this table.
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY,
+  uid TEXT NOT NULL,
+  course_id TEXT,                       -- nullable; no FK enforced
+  title TEXT NOT NULL,
+  description TEXT,
+  start_time TEXT NOT NULL,             -- ISO-8601 start datetime
+  end_time TEXT NOT NULL,               -- ISO-8601 end datetime
+  completed INTEGER NOT NULL DEFAULT 0,  -- 0 = false, 1 = true
+  created_at TEXT NOT NULL,
+  updated_at TEXT,
+  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+);
+
+-- Recurring Events Table
+CREATE TABLE IF NOT EXISTS recurring_events (
+  id TEXT PRIMARY KEY,
+  uid TEXT NOT NULL,
+  course_id TEXT,                       -- nullable; no FK enforced
+  title TEXT NOT NULL,
+  description TEXT,
+  days_of_week TEXT,                    -- JSON array of day names, e.g. ["MONDAY","WEDNESDAY"]
+  start_hour INTEGER,
+  start_minute INTEGER,
+  end_hour INTEGER,
+  end_minute INTEGER,
+  active INTEGER NOT NULL DEFAULT 1,    -- 0 = false, 1 = true
+  created_at TEXT NOT NULL,
+  updated_at TEXT,
+  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+);
+
+-- Recurring Event Completions Table
+-- Tracks which individual occurrences of a recurring event have been completed.
+-- A row exists only for completed instances; absence means not completed.
+CREATE TABLE IF NOT EXISTS recurring_event_completions (
+  id TEXT PRIMARY KEY,
+  recurring_event_id TEXT NOT NULL,
+  uid TEXT NOT NULL,
+  instance_date TEXT NOT NULL,          -- the specific occurrence date (YYYY-MM-DD)
+  UNIQUE(recurring_event_id, instance_date),
+  FOREIGN KEY (recurring_event_id) REFERENCES recurring_events(id) ON DELETE CASCADE,
+  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+);
+
 -- ============================================================================
 -- PHASE 3: Student Features Tables
 -- ============================================================================
@@ -116,6 +164,15 @@ CREATE INDEX IF NOT EXISTS idx_recurring_tasks_active ON recurring_tasks(active)
 CREATE INDEX IF NOT EXISTS idx_recurring_tasks_course_id ON recurring_tasks(course_id);
 CREATE INDEX IF NOT EXISTS idx_recurring_completions_task ON recurring_task_completions(recurring_task_id);
 CREATE INDEX IF NOT EXISTS idx_recurring_completions_uid ON recurring_task_completions(uid);
+CREATE INDEX IF NOT EXISTS idx_events_uid ON events(uid);
+CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time);
+CREATE INDEX IF NOT EXISTS idx_events_completed ON events(completed);
+CREATE INDEX IF NOT EXISTS idx_events_course_id ON events(course_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_events_uid ON recurring_events(uid);
+CREATE INDEX IF NOT EXISTS idx_recurring_events_active ON recurring_events(active);
+CREATE INDEX IF NOT EXISTS idx_recurring_events_course_id ON recurring_events(course_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_event_completions_event ON recurring_event_completions(recurring_event_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_event_completions_uid ON recurring_event_completions(uid);
 CREATE INDEX IF NOT EXISTS idx_courses_uid ON courses(uid);
 CREATE INDEX IF NOT EXISTS idx_study_logs_uid ON study_logs(uid);
 CREATE INDEX IF NOT EXISTS idx_study_logs_task_id ON study_logs(task_id);

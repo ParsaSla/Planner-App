@@ -12,21 +12,30 @@ interface Props {
 }
 
 export default function Sidebar({ store, selection, onSelect, onNewGroup }: Props) {
-  const { tasks, groups } = store;
+  const { tasks, events, groups } = store;
   const todayKey = dayKey(new Date());
+  const todayName = dayName(new Date());
 
   // Counts for the smart views.
-  const todayCount = tasks.filter((t) => {
-    if (isOneTime(t)) return !t.completed && dayKey(new Date(t.date)) === todayKey;
-    return isRecurring(t) && t.days.some((d) => dayName(new Date()) === d);
-  }).length;
+  const todayCount =
+    tasks.filter((t) => {
+      if (isOneTime(t)) return !t.completed && dayKey(new Date(t.date)) === todayKey;
+      return isRecurring(t) && t.days.some((d) => todayName === d);
+    }).length +
+    events.filter((e) =>
+      e.type === 'ONE_TIME'
+        ? dayKey(new Date(e.start)) === todayKey
+        : e.days.some((d) => todayName === d)
+    ).length;
   const allCount = tasks.filter((t) => !(isOneTime(t) && t.completed)).length;
   const recurringCount = tasks.filter(isRecurring).length;
+  const eventsCount = events.length;
 
   const sel = selectionKey(selection);
 
   const groupCount = (id: string) =>
-    tasks.filter((t) => t.course_id === id && !(isOneTime(t) && t.completed)).length;
+    tasks.filter((t) => t.course_id === id && !(isOneTime(t) && t.completed)).length +
+    events.filter((e) => e.course_id === id).length;
 
   return (
     <aside className="sidebar">
@@ -50,6 +59,13 @@ export default function Sidebar({ store, selection, onSelect, onNewGroup }: Prop
         count={recurringCount}
         active={sel === 'view:recurring'}
         onClick={() => onSelect({ kind: 'view', view: 'recurring' })}
+      />
+      <SmartItem
+        icon="📅"
+        label="Events"
+        count={eventsCount}
+        active={sel === 'view:events'}
+        onClick={() => onSelect({ kind: 'view', view: 'events' })}
       />
       <SmartItem
         icon="✓"

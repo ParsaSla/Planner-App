@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Store } from '../useStore';
-import type { Task, TaskInstance } from '../types';
-import { isRecurring } from '../types';
+import type { PlannerItem, TaskInstance } from '../types';
+import { isRecurringItem } from '../types';
 import {
   addDays,
   dayKey,
@@ -21,7 +21,12 @@ type CalView = 'day' | 'week' | 'month';
 interface Props {
   store: Store;
   onClose: () => void;
-  onEdit: (task: Task) => void;
+  onEdit: (item: PlannerItem) => void;
+}
+
+// Tasks and events combined — the calendar shows both on one timeline.
+function calendarItems(store: Store): PlannerItem[] {
+  return [...store.tasks, ...store.events];
 }
 
 const HEAD_H = 54;
@@ -64,9 +69,6 @@ export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
   return (
     <div className="cal-overlay">
       <div className="cal-top">
-        <button className="icon-btn" onClick={onClose}>
-          ✕ Close
-        </button>
         <h2>{title}</h2>
         <div className="cal-nav">
           <button onClick={() => shift(-1)} aria-label="Previous">
@@ -86,6 +88,9 @@ export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
             </button>
           ))}
         </div>
+        <button className="icon-btn cal-close" onClick={onClose}>
+          ✕ Close
+        </button>
       </div>
 
       {store.groups.length > 0 && (
@@ -112,10 +117,10 @@ export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
 }
 
 // ---------------- Month ----------------
-function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEdit: (t: Task) => void }) {
+function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEdit: (t: PlannerItem) => void }) {
   const gridStart = startOfWeek(startOfMonth(anchor));
   const weeks = useMemo(() => {
-    const all = expandInstances(store.tasks, gridStart, addDays(gridStart, 42));
+    const all = expandInstances(calendarItems(store), gridStart, addDays(gridStart, 42));
     const byDay = new Map<string, TaskInstance[]>();
     for (const inst of all) {
       const arr = byDay.get(inst.dateKey) ?? [];
@@ -136,7 +141,7 @@ function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEd
       ws.push(row);
     }
     return ws;
-  }, [store.tasks, gridStart, anchor]);
+  }, [store.tasks, store.events, gridStart, anchor]);
 
   return (
     <div className="month">
@@ -155,17 +160,17 @@ function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEd
               >
                 <div className="num">{cell.date.getDate()}</div>
                 {cell.items.slice(0, 3).map((inst, i) => {
-                  const color = store.groupColor(inst.task.course_id);
+                  const color = store.groupColor(inst.item.course_id);
                   return (
                     <div
                       key={i}
                       className={`ev ${inst.completed ? 'done' : ''}`}
                       style={{ '--c': color, '--cc': softColor(color) } as CSSProperties}
-                      onClick={() => onEdit(inst.task)}
-                      title={inst.task.title}
+                      onClick={() => onEdit(inst.item)}
+                      title={inst.item.title}
                     >
                       {inst.hasTime ? `${formatTime(inst.date)} ` : ''}
-                      {inst.task.title}
+                      {inst.item.title}
                     </div>
                   );
                 })}
@@ -188,9 +193,21 @@ interface LaidOut {
   widthPct: number;
 }
 
+// Default visual span for items without a real duration (tasks, or events
+// missing an end). Events use their actual start→end span instead.
+const DEFAULT_BLOCK = 50 * 60_000;
+const MIN_BLOCK = 20 * 60_000;
+
+/** Duration of an occurrence in ms — real span for events, default otherwise. */
+function instDuration(inst: TaskInstance): number {
+  if (inst.endDate) {
+    return Math.max(MIN_BLOCK, inst.endDate.getTime() - inst.date.getTime());
+  }
+  return DEFAULT_BLOCK;
+}
+
 function layoutDay(items: TaskInstance[]): LaidOut[] {
   const timed = items.filter((i) => i.hasTime).sort((a, b) => a.date.getTime() - b.date.getTime());
-  const BLOCK = 50 * 60_000;
   const out: LaidOut[] = [];
   let cluster: TaskInstance[] = [];
   let clusterEnd = 0;
@@ -201,7 +218,7 @@ function layoutDay(items: TaskInstance[]): LaidOut[] {
       out.push({
         inst,
         top: (mins / 60) * HOUR_H,
-        height: (BLOCK / 60_000 / 60) * HOUR_H,
+        height: (instDuration(inst) / 60_000 / 60) * HOUR_H,
         leftPct: (i * 100) / cluster.length,
         widthPct: 100 / cluster.length,
       });
@@ -213,11 +230,11 @@ function layoutDay(items: TaskInstance[]): LaidOut[] {
     const start = inst.date.getTime();
     if (cluster.length && start < clusterEnd) {
       cluster.push(inst);
-      clusterEnd = Math.max(clusterEnd, start + BLOCK);
+      clusterEnd = Math.max(clusterEnd, start + instDuration(inst));
     } else {
       flush();
       cluster = [inst];
-      clusterEnd = start + BLOCK;
+      clusterEnd = start + instDuration(inst);
     }
   }
   flush();
@@ -233,23 +250,24 @@ function TimeGrid({
   store: Store;
   anchor: Date;
   view: 'day' | 'week';
-  onEdit: (t: Task) => void;
+  onEdit: (t: PlannerItem) => void;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const cols = useMemo(() => {
     const start = view === 'week' ? startOfWeek(anchor) : startOfDay(anchor);
     const n = view === 'week' ? 7 : 1;
+    const all = calendarItems(store);
     return Array.from({ length: n }, (_, i) => {
       const date = addDays(start, i);
-      const items = expandInstances(store.tasks, date, addDays(date, 1));
+      const items = expandInstances(all, date, addDays(date, 1));
       return {
         date,
         allDay: items.filter((it) => !it.hasTime),
         timed: layoutDay(items),
       };
     });
-  }, [store.tasks, anchor, view]);
+  }, [store.tasks, store.events, anchor, view]);
 
   const hasAllDay = cols.some((c) => c.allDay.length > 0);
   const allDayH = hasAllDay ? ALLDAY_H : 0;
@@ -290,16 +308,16 @@ function TimeGrid({
               {hasAllDay && (
                 <div className="tg-allday" style={{ height: allDayH, overflow: 'auto' }}>
                   {col.allDay.map((inst, i) => {
-                    const color = store.groupColor(inst.task.course_id);
+                    const color = store.groupColor(inst.item.course_id);
                     return (
                       <div
                         key={i}
                         className={`ev ${inst.completed ? 'done' : ''}`}
                         style={{ '--c': color, '--cc': softColor(color) } as CSSProperties}
-                        onClick={() => onEdit(inst.task)}
-                        title={inst.task.title}
+                        onClick={() => onEdit(inst.item)}
+                        title={inst.item.title}
                       >
-                        {inst.task.title}
+                        {inst.item.title}
                       </div>
                     );
                   })}
@@ -311,8 +329,9 @@ function TimeGrid({
                   <div className="hr" style={{ height: HOUR_H }} key={h} />
                 ))}
                 {col.timed.map((lo, i) => {
-                  const t = lo.inst.task;
+                  const t = lo.inst.item;
                   const color = store.groupColor(t.course_id);
+                  const endLabel = lo.inst.endDate ? ` – ${formatTime(lo.inst.endDate)}` : '';
                   return (
                     <div
                       key={i}
@@ -333,7 +352,8 @@ function TimeGrid({
                       <div className="et">{t.title}</div>
                       <div className="es">
                         {formatTime(lo.inst.date)}
-                        {isRecurring(t) ? ' · 🔁' : ''}
+                        {endLabel}
+                        {isRecurringItem(t) ? ' · 🔁' : ''}
                       </div>
                     </div>
                   );

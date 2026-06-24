@@ -4,7 +4,7 @@ import {deleteSession, validateSession, login, register} from './backend/auth';
 import { initializeDB } from './backend/dbManager';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { getTasks, deleteTask, updateTaskCompletion, createTask, updateTask, toggleRecurringInstance, createCourse, getCourses, deleteCourse } from './backend/API';
+import { getTasks, deleteTask, updateTaskCompletion, createTask, updateTask, toggleRecurringInstance, createCourse, getCourses, deleteCourse, createEvent, getEvents, deleteEvent, updateEvent, updateEventCompletion, toggleRecurringEventInstance } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -246,6 +246,106 @@ app.patch("/api/tasks/:id", (req, res) => {
     }
 
     updateTaskCompletion(UID, taskId, completed);
+    res.status(200).json({ success: true });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+/////////////////////////////
+// EVENT API ENDPOINTS      //
+/////////////////////////////
+
+// create event, expects { type, title, description, start, end, days, startTime, endTime, courseId? }
+app.post("/api/events", (req, res) => {
+  const { type, title, description, start, end, days, startTime, endTime, courseId } = req.body;
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+    createEvent(type, title, UID, start, end, days, startTime, endTime, description, courseId);
+
+    res.status(201).json({ success: true });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+// get events
+app.get("/api/events", (req, res) => {
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+    const events = getEvents(UID);
+    res.status(200).json({ success: true, events });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+// delete event
+app.delete("/api/events/:id", (req, res) => {
+  const eventId = req.params.id;
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+    deleteEvent(UID, eventId);
+    res.status(200).json({ success: true });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+// update event (both one-time and recurring)
+app.put("/api/events/:id", (req, res) => {
+  const eventId = req.params.id;
+  const { type, title, description, start, end, days, startTime, endTime, courseId } = req.body;
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+
+    updateEvent(UID, eventId, type, title, description, start, end, days, startTime, endTime, courseId);
+    res.status(200).json({ success: true });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+// toggle recurring event instance completion
+app.patch("/api/events/:id/instance", (req, res) => {
+  const eventId = req.params.id;
+  const { instanceDate, completed } = req.body;
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+    if (typeof completed !== 'boolean') {
+      throw new AppError('Invalid completed value', ERRORS.INVALID_EVENT_DATA);
+    }
+    toggleRecurringEventInstance(UID, eventId, instanceDate, completed);
+    res.status(200).json({ success: true });
+  } catch (e) {
+    const error = e as AppError;
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+  }
+});
+
+// update one-time event completion
+app.patch("/api/events/:id", (req, res) => {
+  const eventId = req.params.id;
+  const { completed } = req.body;
+  try {
+    const sessionID = retrieveSessionID(req.headers.cookie);
+    const UID = validateSession(sessionID);
+
+    if (typeof completed !== 'boolean') {
+      throw new AppError('Invalid completed value', ERRORS.INVALID_EVENT_DATA);
+    }
+
+    updateEventCompletion(UID, eventId, completed);
     res.status(200).json({ success: true });
   } catch (e) {
     const error = e as AppError;

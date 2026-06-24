@@ -14,10 +14,10 @@ describe('backend/auth', () => {
   });
 
   it('registers a new user and allows login', () => {
-    const uid = register('TestUser', 'securePassword');
+    const uid = register('TestUser', 'securePassword1');
     expect(uid).toBeTruthy();
 
-    const sid = login('testuser', 'securePassword');
+    const sid = login('testuser', 'securePassword1');
     expect(sid).toBeTruthy();
 
     const validatedUid = validateSession(sid);
@@ -25,15 +25,22 @@ describe('backend/auth', () => {
   });
 
   it('rejects duplicate user registration and invalid credentials', () => {
-    register('duplicate', 'password');
-    expect(() => register('duplicate', 'password')).toThrow(AppError);
-    expect(() => login('duplicate', 'wrongpassword')).toThrow(AppError);
-    expect(() => login('missing', 'password')).toThrow(AppError);
+    register('duplicate', 'Password1');
+    expect(() => register('duplicate', 'Password1')).toThrow(AppError);
+    expect(() => login('duplicate', 'wrongPassword1')).toThrow(AppError);
+    expect(() => login('missing', 'Password1')).toThrow(AppError);
+  });
+
+  it('rejects registration with a password that breaks the rules', () => {
+    expect(() => register('weakshort', 'Ab1')).toThrow(AppError); // too short
+    expect(() => register('weaknoupper', 'password1')).toThrow(AppError); // no uppercase
+    expect(() => register('weaknonumber', 'Password')).toThrow(AppError); // no number
+    expect(() => register('weaknolower', 'PASSWORD1')).toThrow(AppError); // no lowercase
   });
 
   it('deletes a session and invalidates it', () => {
-    const uid = register('sessionuser', 'password');
-    const sid = login('sessionuser', 'password');
+    const uid = register('sessionuser', 'Password1');
+    const sid = login('sessionuser', 'Password1');
     expect(validateSession(sid)).toBe(uid);
 
     deleteSession(sid);

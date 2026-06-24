@@ -1,4 +1,4 @@
-import type { Task, Group, TaskInput, GroupInput } from './types';
+import type { Task, Group, TaskInput, GroupInput, PlannerEvent, EventInput } from './types';
 
 class ApiError extends Error {
   status: number;
@@ -64,6 +64,41 @@ export const api = {
 
   async setRecurringInstance(id: string, instanceDate: string, completed: boolean): Promise<void> {
     await request(`/api/tasks/${encodeURIComponent(id)}/instance`, {
+      method: 'PATCH',
+      body: JSON.stringify({ instanceDate, completed }),
+    });
+  },
+
+  // ---- Events ----
+  async getEvents(): Promise<PlannerEvent[]> {
+    const data = await request<{ success: boolean; events: PlannerEvent[] }>('/api/events');
+    return data.events;
+  },
+
+  async createEvent(input: EventInput): Promise<void> {
+    await request('/api/events', { method: 'POST', body: JSON.stringify(input) });
+  },
+
+  async updateEvent(id: string, input: EventInput): Promise<void> {
+    await request(`/api/events/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteEvent(id: string): Promise<void> {
+    await request(`/api/events/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
+  async setEventCompletion(id: string, completed: boolean): Promise<void> {
+    await request(`/api/events/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ completed }),
+    });
+  },
+
+  async setRecurringEventInstance(id: string, instanceDate: string, completed: boolean): Promise<void> {
+    await request(`/api/events/${encodeURIComponent(id)}/instance`, {
       method: 'PATCH',
       body: JSON.stringify({ instanceDate, completed }),
     });

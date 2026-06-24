@@ -27,7 +27,7 @@
     "build:server": "tsc",
     "build:client": "vite build",
     "test": "vitest run",
-    "start:all": "concurrently -n server,client -c blue,magenta \"npm run dev:server\" \"npm run dev:client\"",
+    "start:all": "npm run build:client && concurrently -n server,client -c blue,magenta \"npm run dev:server\" \"npm run dev:client\"",
     "show:db": "sqlitebrowser data/app.db"
   }
 }

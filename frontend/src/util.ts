@@ -1,5 +1,5 @@
-import type { Task, TaskInstance, Day, Group } from './types';
-import { isRecurring } from './types';
+import type { PlannerItem, TaskInstance, Day, Group } from './types';
+import { isEventItem, isRecurringItem } from './types';
 
 // JS Date.getDay(): 0=Sun … 6=Sat → our Day names.
 const JS_DAY_TO_NAME: Day[] = [
@@ -74,43 +74,74 @@ export function isToday(d: Date): boolean {
 }
 
 /**
- * Expand all tasks into concrete dated instances within [start, end] (inclusive
- * of start day, exclusive of end day). One-time tasks appear once if their date
- * falls in range; recurring tasks appear on every matching weekday.
+ * Expand tasks and events into concrete dated instances within [start, end]
+ * (inclusive of start day, exclusive of end day). One-time items appear once if
+ * they fall in range; recurring items appear on every matching weekday. Events
+ * carry a real start→end span (endDate); tasks do not.
  */
-export function expandInstances(tasks: Task[], start: Date, end: Date): TaskInstance[] {
+export function expandInstances(items: PlannerItem[], start: Date, end: Date): TaskInstance[] {
   const out: TaskInstance[] = [];
   const rangeStart = startOfDay(start).getTime();
   const rangeEnd = startOfDay(end).getTime();
 
-  for (const task of tasks) {
-    if (isRecurring(task)) {
-      if (!task.days?.length) continue;
+  for (const item of items) {
+    const kind = isEventItem(item) ? 'event' : 'task';
+
+    if (isRecurringItem(item)) {
+      if (!item.days?.length) continue;
+      // Recurring task uses `time`; recurring event uses `startTime`/`endTime`.
+      const startH = 'startTime' in item ? item.startTime : item.time;
+      const endH = 'endTime' in item ? item.endTime : undefined;
       for (let cur = new Date(rangeStart); cur.getTime() < rangeEnd; cur = addDays(cur, 1)) {
         const name = JS_DAY_TO_NAME[cur.getDay()];
-        if (!task.days.includes(name)) continue;
+        if (!item.days.includes(name)) continue;
         const occ = new Date(cur);
-        occ.setHours(task.time?.hour ?? 0, task.time?.minute ?? 0, 0, 0);
+        occ.setHours(startH?.hour ?? 0, startH?.minute ?? 0, 0, 0);
+        let endDate: Date | undefined;
+        if (endH) {
+          endDate = new Date(cur);
+          endDate.setHours(endH.hour, endH.minute, 0, 0);
+        }
         const key = dayKey(occ);
         out.push({
-          task,
+          item,
+          kind,
           date: occ,
+          endDate,
           dateKey: key,
-          completed: task.completedDates?.includes(key) ?? false,
+          completed: item.completedDates?.includes(key) ?? false,
           instanceDate: key,
           hasTime: true,
         });
       }
+    } else if (isEventItem(item)) {
+      // One-time event: real start/end datetimes.
+      const d = new Date(item.start);
+      if (isNaN(d.getTime())) continue;
+      const t = startOfDay(d).getTime();
+      if (t < rangeStart || t >= rangeEnd) continue;
+      const endDate = new Date(item.end);
+      out.push({
+        item,
+        kind,
+        date: d,
+        endDate: isNaN(endDate.getTime()) ? undefined : endDate,
+        dateKey: dayKey(d),
+        completed: item.completed,
+        hasTime: true,
+      });
     } else {
-      const d = parseTaskDate(task.date);
+      // One-time task: date-only.
+      const d = parseTaskDate(item.date);
       if (isNaN(d.getTime())) continue;
       const t = startOfDay(d).getTime();
       if (t < rangeStart || t >= rangeEnd) continue;
       out.push({
-        task,
+        item,
+        kind,
         date: d,
         dateKey: dayKey(d),
-        completed: task.completed,
+        completed: item.completed,
         hasTime: false,
       });
     }

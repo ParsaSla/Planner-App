@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
-import type { Task, Group, TaskInput, GroupInput } from './types';
+import type { Task, Group, TaskInput, GroupInput, PlannerEvent, EventInput } from './types';
 import { colorForGroup } from './util';
 
 export interface Store {
   tasks: Task[];
+  events: PlannerEvent[];
   groups: Group[];
   loading: boolean;
   error: string | null;
@@ -17,12 +18,18 @@ export interface Store {
   deleteTask: (id: string) => Promise<void>;
   toggleOneTime: (id: string, completed: boolean) => Promise<void>;
   toggleInstance: (id: string, instanceDate: string, completed: boolean) => Promise<void>;
+  createEvent: (input: EventInput) => Promise<void>;
+  updateEvent: (id: string, input: EventInput) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
+  toggleEventCompletion: (id: string, completed: boolean) => Promise<void>;
+  toggleEventInstance: (id: string, instanceDate: string, completed: boolean) => Promise<void>;
   createGroup: (input: GroupInput) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
 }
 
 export function useStore(): Store {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [events, setEvents] = useState<PlannerEvent[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,11 +37,12 @@ export function useStore(): Store {
   const reload = useCallback(async () => {
     try {
       setError(null);
-      const [t, g] = await Promise.all([api.getTasks(), api.getGroups()]);
+      const [t, e, g] = await Promise.all([api.getTasks(), api.getEvents(), api.getGroups()]);
       setTasks(t);
+      setEvents(e);
       setGroups(g);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load data');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -68,6 +76,7 @@ export function useStore(): Store {
 
   return {
     tasks,
+    events,
     groups,
     loading,
     error,
@@ -80,6 +89,12 @@ export function useStore(): Store {
     toggleOneTime: (id, completed) => run(() => api.setOneTimeCompletion(id, completed))(),
     toggleInstance: (id, instanceDate, completed) =>
       run(() => api.setRecurringInstance(id, instanceDate, completed))(),
+    createEvent: (input) => run(() => api.createEvent(input))(),
+    updateEvent: (id, input) => run(() => api.updateEvent(id, input))(),
+    deleteEvent: (id) => run(() => api.deleteEvent(id))(),
+    toggleEventCompletion: (id, completed) => run(() => api.setEventCompletion(id, completed))(),
+    toggleEventInstance: (id, instanceDate, completed) =>
+      run(() => api.setRecurringEventInstance(id, instanceDate, completed))(),
     createGroup: (input) => run(() => api.createGroup(input))(),
     deleteGroup: (id) => run(() => api.deleteGroup(id))(),
   };
