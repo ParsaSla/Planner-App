@@ -25,18 +25,19 @@ export interface CourseRow {
 
 export interface SettingsRow {
     uid: string;
-    teaching_period_weeks: number;
-    term_weeks: number;
     term_system: string;
     flex_week: number;
+    ical_url?: string;
     updated_at: string;
 }
 
 export interface SettingsTermDateRow {
     uid: string;
     term_index: number;
-    day: number;
-    month: number;
+    start_day: number;
+    start_month: number;
+    end_day: number;
+    end_month: number;
 }
 
 // TASKS AND EVENTS
@@ -76,6 +77,7 @@ export interface EventRow {
     start_time: string;
     end_time: string;
     completed: number;
+    source_uid?: string;
     created_at: string;
     updated_at?: string;
 }
@@ -92,6 +94,7 @@ export interface RecurringEventRow {
     end_hour?: number;
     end_minute?: number;
     active: number;
+    source_uid?: string;
     created_at: string;
     updated_at?: string;
 }

@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS events (
   start_time TEXT NOT NULL,             -- ISO-8601 start datetime
   end_time TEXT NOT NULL,               -- ISO-8601 end datetime
   completed INTEGER NOT NULL DEFAULT 0,  -- 0 = false, 1 = true
+  source_uid TEXT,                      -- iCal UID for imported events; NULL for manual ones
   created_at TEXT NOT NULL,
   updated_at TEXT,
   FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
@@ -103,6 +104,7 @@ CREATE TABLE IF NOT EXISTS recurring_events (
   end_hour INTEGER,
   end_minute INTEGER,
   active INTEGER NOT NULL DEFAULT 1,    -- 0 = false, 1 = true
+  source_uid TEXT,                      -- iCal UID for imported events; NULL for manual ones
   created_at TEXT NOT NULL,
   updated_at TEXT,
   FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
@@ -134,6 +136,30 @@ CREATE TABLE IF NOT EXISTS courses (
   color_code TEXT,                      -- hex color for UI categorization, e.g. #667eea
   created_at TEXT NOT NULL,
   FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+);
+
+-- Settings Table (per-user university/app settings)
+-- One row per user. term_dates are stored in a companion table below.
+CREATE TABLE IF NOT EXISTS settings (
+  uid TEXT PRIMARY KEY,
+  term_system TEXT NOT NULL,            -- 'SEMESTER' (2 terms) or 'TRIMESTER' (3 terms)
+  flex_week INTEGER NOT NULL,           -- which teaching week is the flex/non-teaching week
+  ical_url TEXT,                        -- saved iCal timetable subscription URL (nullable)
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+);
+
+-- Settings Term Dates Table
+-- Start/end (day + month, year-agnostic) of each term. term_index 0 = Term 1, etc.
+CREATE TABLE IF NOT EXISTS settings_term_dates (
+  uid TEXT NOT NULL,
+  term_index INTEGER NOT NULL,
+  start_day INTEGER NOT NULL,
+  start_month INTEGER NOT NULL,
+  end_day INTEGER NOT NULL,
+  end_month INTEGER NOT NULL,
+  PRIMARY KEY (uid, term_index),
+  FOREIGN KEY (uid) REFERENCES settings(uid) ON DELETE CASCADE
 );
 
 -- Study Logs Table (for time tracking)
@@ -219,6 +245,24 @@ CREATE INDEX IF NOT EXISTS idx_sessions_uid ON sessions(uid);
 --   - course_name: Course name (e.g., "Data Structures")
 --   - course_code: Optional course code (e.g., "CS201")
 --   - color_code: Hex color for UI categorization
+--
+-- Events / Recurring Events Tables:
+--   - source_uid: The iCal UID of an event imported from an iCal feed; NULL for
+--     events created by hand. Combined with start_time it de-duplicates re-imports
+--     (see the iCal import notes below). Added via an ALTER TABLE migration in
+--     dbManager.ts for existing databases.
+--
+-- Settings / Settings Term Dates Tables:
+--   - One settings row per user (term_system, flex_week, ical_url). Older week-based
+--     layouts are dropped-and-recreated on connect; ical_url is added via ALTER TABLE
+--     for existing databases.
+--   - settings_term_dates holds each term's start/end as day+month (year-agnostic).
+--
+-- iCal Import:
+--   - A timetable iCal/webcal URL is saved in settings.ical_url. On import, each
+--     VEVENT is expanded into its concrete occurrences and stored as one-time rows in
+--     `events` with source_uid set. Re-imports skip rows whose (source_uid, start_time)
+--     already exist, so re-syncing adds only new occurrences.
 --
 -- Study Logs Table (Phase 3B — PLANNED):
 --   - Not yet created by dbManager.ts. Included here as the intended design.

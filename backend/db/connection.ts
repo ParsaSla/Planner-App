@@ -22,11 +22,18 @@ function initializeSQLite(dbPath: string): void {
     sqliteDB.pragma('journal_mode = WAL');
     sqliteDB.pragma('foreign_keys = ON');
 
-    // Pre-schema migration: the original settings table stored a single JSON blob
-    // (settings_json). Drop that legacy layout so the canonical schema below recreates
-    // it with the normalized columns. New databases have no settings table yet and skip this.
+    // Pre-schema migration: settings have been through two earlier layouts — a single
+    // JSON blob, then week-based columns (teaching_period_weeks/term_weeks). The current
+    // layout stores explicit per-term start/end dates instead of durations. Drop any
+    // older layout so the canonical schema below recreates it. Settings have safe
+    // defaults, so discarding stale rows is acceptable. New databases skip this.
     const legacySettings = sqliteDB.pragma('table_info(settings)') as Array<{ name: string }>;
-    if (legacySettings.length > 0 && !legacySettings.find(c => c.name === 'teaching_period_weeks')) {
+    const isLegacySettings =
+        legacySettings.length > 0 &&
+        (legacySettings.find(c => c.name === 'teaching_period_weeks') !== undefined ||
+            legacySettings.find(c => c.name === 'term_weeks') !== undefined ||
+            legacySettings.find(c => c.name === 'term_system') === undefined);
+    if (isLegacySettings) {
         sqliteDB.exec(`
             DROP TABLE IF EXISTS settings_term_dates;
             DROP TABLE settings;
@@ -106,6 +113,7 @@ function initializeSQLite(dbPath: string): void {
             start_time TEXT NOT NULL,
             end_time TEXT NOT NULL,
             completed INTEGER NOT NULL DEFAULT 0,
+            source_uid TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
@@ -123,6 +131,7 @@ function initializeSQLite(dbPath: string): void {
             end_hour INTEGER,
             end_minute INTEGER,
             active INTEGER NOT NULL DEFAULT 1,
+            source_uid TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
@@ -140,10 +149,9 @@ function initializeSQLite(dbPath: string): void {
 
         CREATE TABLE IF NOT EXISTS settings (
             uid TEXT PRIMARY KEY,
-            teaching_period_weeks INTEGER NOT NULL,
-            term_weeks INTEGER NOT NULL,
             term_system TEXT NOT NULL,
             flex_week INTEGER NOT NULL,
+            ical_url TEXT,
             updated_at TEXT NOT NULL,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
@@ -151,8 +159,10 @@ function initializeSQLite(dbPath: string): void {
         CREATE TABLE IF NOT EXISTS settings_term_dates (
             uid TEXT NOT NULL,
             term_index INTEGER NOT NULL,
-            day INTEGER NOT NULL,
-            month INTEGER NOT NULL,
+            start_day INTEGER NOT NULL,
+            start_month INTEGER NOT NULL,
+            end_day INTEGER NOT NULL,
+            end_month INTEGER NOT NULL,
             PRIMARY KEY (uid, term_index),
             FOREIGN KEY(uid) REFERENCES settings(uid) ON DELETE CASCADE
         );
@@ -166,6 +176,21 @@ function initializeSQLite(dbPath: string): void {
     const recurringCols = sqliteDB.pragma('table_info(recurring_tasks)') as Array<{ name: string }>;
     if (!recurringCols.find(c => c.name === 'course_id')) {
         sqliteDB.exec('ALTER TABLE recurring_tasks ADD COLUMN course_id TEXT');
+    }
+
+    // Migrate: iCal import support — a saved subscription URL and the source UID
+    // (used to de-duplicate re-imports) on imported events.
+    const settingsCols = sqliteDB.pragma('table_info(settings)') as Array<{ name: string }>;
+    if (!settingsCols.find(c => c.name === 'ical_url')) {
+        sqliteDB.exec('ALTER TABLE settings ADD COLUMN ical_url TEXT');
+    }
+    const eventCols = sqliteDB.pragma('table_info(events)') as Array<{ name: string }>;
+    if (!eventCols.find(c => c.name === 'source_uid')) {
+        sqliteDB.exec('ALTER TABLE events ADD COLUMN source_uid TEXT');
+    }
+    const recEventCols = sqliteDB.pragma('table_info(recurring_events)') as Array<{ name: string }>;
+    if (!recEventCols.find(c => c.name === 'source_uid')) {
+        sqliteDB.exec('ALTER TABLE recurring_events ADD COLUMN source_uid TEXT');
     }
 }
 

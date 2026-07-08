@@ -47,13 +47,14 @@ export function createOneTimeEventRow(event: {
     start_time: string;
     end_time: string;
     completed: number;
+    source_uid?: string;
     created_at: string;
 }): void {
     const db = getSQLiteDB();
     db.prepare(
-        `INSERT INTO events (id, uid, course_id, title, description, start_time, end_time, completed, created_at)
-         VALUES (@id, @uid, @course_id, @title, @description, @start_time, @end_time, @completed, @created_at)`
-    ).run({ ...event, course_id: event.course_id ?? null });
+        `INSERT INTO events (id, uid, course_id, title, description, start_time, end_time, completed, source_uid, created_at)
+         VALUES (@id, @uid, @course_id, @title, @description, @start_time, @end_time, @completed, @source_uid, @created_at)`
+    ).run({ ...event, course_id: event.course_id ?? null, source_uid: event.source_uid ?? null });
 }
 
 export function createRecurringEventRow(event: {
@@ -68,13 +69,34 @@ export function createRecurringEventRow(event: {
     end_hour: number;
     end_minute: number;
     active: number;
+    source_uid?: string;
     created_at: string;
 }): void {
     const db = getSQLiteDB();
     db.prepare(
-        `INSERT INTO recurring_events (id, uid, course_id, title, description, days_of_week, start_hour, start_minute, end_hour, end_minute, active, created_at)
-         VALUES (@id, @uid, @course_id, @title, @description, @days_of_week, @start_hour, @start_minute, @end_hour, @end_minute, @active, @created_at)`
-    ).run({ ...event, course_id: event.course_id ?? null });
+        `INSERT INTO recurring_events (id, uid, course_id, title, description, days_of_week, start_hour, start_minute, end_hour, end_minute, active, source_uid, created_at)
+         VALUES (@id, @uid, @course_id, @title, @description, @days_of_week, @start_hour, @start_minute, @end_hour, @end_minute, @active, @source_uid, @created_at)`
+    ).run({ ...event, course_id: event.course_id ?? null, source_uid: event.source_uid ?? null });
+}
+
+/**
+ * De-dup keys for events previously imported from an iCal feed. One-time events are
+ * keyed by `O:<source_uid>:<start_time>` (a UID can span many dated occurrences);
+ * recurring events by `R:<source_uid>`.
+ */
+export function getImportedSourceKeys(uid: string): Set<string> {
+    const db = getSQLiteDB();
+    const oneTime = db.prepare<{ uid: string }, { source_uid: string; start_time: string }>(
+        'SELECT source_uid, start_time FROM events WHERE uid = @uid AND source_uid IS NOT NULL'
+    ).all({ uid });
+    const recurring = db.prepare<{ uid: string }, { source_uid: string }>(
+        'SELECT source_uid FROM recurring_events WHERE uid = @uid AND source_uid IS NOT NULL'
+    ).all({ uid });
+
+    const keys = new Set<string>();
+    oneTime.forEach(r => keys.add(`O:${r.source_uid}:${r.start_time}`));
+    recurring.forEach(r => keys.add(`R:${r.source_uid}`));
+    return keys;
 }
 
 export function getOneTimeEventsByUID(uid: string): OneTimeEvent[] {

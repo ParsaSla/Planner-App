@@ -789,11 +789,11 @@ button {
 
 /* ---------- Settings modal ---------- */
 .settings-modal {
-  width: 620px;
+  width: 840px;
 }
 .settings-body {
   display: flex;
-  min-height: 360px;
+  min-height: 460px;
 }
 .settings-tabs {
   flex: 0 0 168px;
@@ -838,10 +838,10 @@ button {
   min-width: 0;
 }
 .settings-pane {
-  padding: 22px;
+  padding: 26px 28px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   flex: 1;
 }
 .field-hint {
@@ -853,21 +853,46 @@ button {
 .settings-terms {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
 }
 .settings-term-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  flex-wrap: wrap;
 }
 .settings-term-label {
-  flex: 0 0 70px;
+  flex: 0 0 64px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--text);
 }
-.settings-term-row select {
+.settings-term-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.settings-term-legend {
+  flex: 0 0 38px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.settings-term-date select {
   flex: 1;
+  min-width: 0;
+}
+/* Day picker is narrower than the month name. */
+.settings-term-date select:first-of-type {
+  flex: 0 0 78px;
 }
 .settings-saved {
   margin-right: auto;
@@ -875,6 +900,75 @@ button {
   font-size: 13px;
   font-weight: 600;
   color: var(--accent);
+}
+
+/* ---------- Timetable import ---------- */
+.import-result {
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+.import-note,
+.import-count {
+  color: var(--text-faint);
+  font-weight: 500;
+}
+.import-courses {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.import-course {
+  padding: 11px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+}
+.import-course.excluded {
+  opacity: 0.5;
+}
+.import-course-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.import-dot {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.import-name {
+  flex: 1;
+  min-width: 0;
+}
+.import-count {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.import-course-opts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.import-course-opts select {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+.import-code {
+  flex: 0 0 90px;
+}
+.import-swatches {
+  margin: 0;
 }
 
 /* ---------- Calendar overlay ---------- */

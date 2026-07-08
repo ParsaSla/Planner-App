@@ -1,4 +1,15 @@
-import type { Task, Group, TaskInput, GroupInput, PlannerEvent, EventInput } from './types';
+import type {
+  Task,
+  Group,
+  TaskInput,
+  GroupInput,
+  PlannerEvent,
+  EventInput,
+  ImportPreview,
+  ImportResult,
+  CourseDecision,
+  ParsedICalEvent,
+} from './types';
 import type { Settings } from './settings';
 
 class ApiError extends Error {
@@ -127,6 +138,27 @@ export const api = {
 
   async saveSettings(settings: Settings): Promise<void> {
     await request('/api/settings', { method: 'PUT', body: JSON.stringify(settings) });
+  },
+
+  // ---- iCal import ----
+  async previewICalImport(url: string): Promise<ImportPreview> {
+    const data = await request<{ success: boolean; preview: ImportPreview }>('/api/ical/preview', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+    return data.preview;
+  },
+
+  async commitICalImport(payload: {
+    url: string;
+    courseDecisions: CourseDecision[];
+    events: ParsedICalEvent[];
+  }): Promise<ImportResult> {
+    const data = await request<{ success: boolean; result: ImportResult }>('/api/ical/import', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return data.result;
   },
 
   // ---- Auth ----

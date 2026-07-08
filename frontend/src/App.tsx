@@ -78,7 +78,9 @@ export default function App() {
         <CalendarOverlay store={store} onClose={() => setCalendarOpen(false)} onEdit={openEdit} />
       )}
 
-      {settingsOpen && <SettingsModal settings={settings} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsModal settings={settings} store={store} onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
   );
 }

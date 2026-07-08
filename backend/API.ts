@@ -31,7 +31,11 @@ import {
     updateOneTimeEventRow,
     updateRecurringEventRow,
     setRecurringEventInstanceCompletion,
+    getImportedSourceKeys,
+    updateICalUrl,
+    getSQLiteDB,
 } from './dbManager';
+import { fetchICS, parseICSToEvents, ParsedICalEvent } from './ical';
 
 /** Throws if no user exists for the given UID. */
 function requireUser(UID: string): void {
@@ -389,26 +393,28 @@ interface TermDate {
     month: number;
 }
 
+interface TermPeriod {
+    start: TermDate;
+    end: TermDate;
+}
+
 interface UniversitySettings {
-    teachingPeriodWeeks: number;
-    termWeeks: number;
     termSystem: string;
-    termStartDates: TermDate[];
+    termDates: TermPeriod[];
     flexWeek: number;
 }
 
 const TERM_SYSTEMS = ['SEMESTER', 'TRIMESTER'];
+const EMPTY_PERIOD: TermPeriod = { start: { day: 0, month: 0 }, end: { day: 0, month: 0 } };
 
 // Mirrors DEFAULT_SETTINGS on the frontend — returned when a user has no saved settings yet.
 const DEFAULT_UNIVERSITY_SETTINGS: UniversitySettings = {
-    teachingPeriodWeeks: 12,
-    termWeeks: 13,
     termSystem: 'SEMESTER',
-    termStartDates: [{ day: 0, month: 0 }, { day: 0, month: 0 }],
+    termDates: [{ ...EMPTY_PERIOD }, { ...EMPTY_PERIOD }],
     flexWeek: 6,
 };
 
-export function getSettings(UID: string): { university: UniversitySettings } {
+export function getSettings(UID: string): { university: UniversitySettings; icalUrl?: string } {
     requireUser(UID);
 
     const row = getSettingsByUID(UID);
@@ -418,12 +424,14 @@ export function getSettings(UID: string): { university: UniversitySettings } {
 
     return {
         university: {
-            teachingPeriodWeeks: row.teaching_period_weeks,
-            termWeeks: row.term_weeks,
             termSystem: row.term_system,
             flexWeek: row.flex_week,
-            termStartDates: row.term_start_dates.map(d => ({ day: d.day, month: d.month })),
+            termDates: row.term_dates.map(d => ({
+                start: { day: d.start_day, month: d.start_month },
+                end: { day: d.end_day, month: d.end_month },
+            })),
         },
+        icalUrl: row.ical_url || undefined,
     };
 }
 
@@ -434,42 +442,241 @@ export function saveSettings(UID: string, university: UniversitySettings): void 
         throw new AppError('University settings are required', ERRORS.INVALID_SETTINGS_DATA);
     }
 
-    const { teachingPeriodWeeks, termWeeks, termSystem, termStartDates, flexWeek } = university;
+    const { termSystem, termDates, flexWeek } = university;
 
     if (!TERM_SYSTEMS.includes(termSystem)) {
         throw new AppError('Invalid term system', ERRORS.INVALID_SETTINGS_DATA);
     }
-    if (!Number.isInteger(teachingPeriodWeeks) || teachingPeriodWeeks < 1) {
-        throw new AppError('Teaching period must be at least 1 week', ERRORS.INVALID_SETTINGS_DATA);
+    if (!Number.isInteger(flexWeek) || flexWeek < 1) {
+        throw new AppError('Flex week must be at least 1', ERRORS.INVALID_SETTINGS_DATA);
     }
-    if (!Number.isInteger(termWeeks) || termWeeks < 1) {
-        throw new AppError('Term duration must be at least 1 week', ERRORS.INVALID_SETTINGS_DATA);
+    if (!Array.isArray(termDates)) {
+        throw new AppError('Term dates are required', ERRORS.INVALID_SETTINGS_DATA);
     }
-    if (!Number.isInteger(flexWeek) || flexWeek < 1 || flexWeek > termWeeks) {
-        throw new AppError('Flex week must be within the term duration', ERRORS.INVALID_SETTINGS_DATA);
-    }
-    if (!Array.isArray(termStartDates)) {
-        throw new AppError('Term start dates are required', ERRORS.INVALID_SETTINGS_DATA);
-    }
+
+    // Validates a day/month pair, returning the sanitized values. 0 = unset.
+    const normalizeDate = (date: TermDate | undefined): TermDate => {
+        const day = Number(date?.day) || 0;
+        const month = Number(date?.month) || 0;
+        if (day < 0 || day > 31 || month < 0 || month > 12) {
+            throw new AppError('Invalid term date', ERRORS.INVALID_SETTINGS_DATA);
+        }
+        return { day, month };
+    };
 
     // Size the stored dates to the term system (2 for semester, 3 for trimester).
     const expectedTerms = termSystem === 'TRIMESTER' ? 3 : 2;
     const normalizedDates = Array.from({ length: expectedTerms }, (_, i) => {
-        const d = termStartDates[i] ?? { day: 0, month: 0 };
-        const day = Number(d.day) || 0;
-        const month = Number(d.month) || 0;
-        if (day < 0 || day > 31 || month < 0 || month > 12) {
-            throw new AppError('Invalid term start date', ERRORS.INVALID_SETTINGS_DATA);
-        }
-        return { day, month };
+        const period = termDates[i] ?? EMPTY_PERIOD;
+        return {
+            start: normalizeDate(period.start),
+            end: normalizeDate(period.end),
+        };
     });
 
     upsertSettings({
         uid: UID,
-        teaching_period_weeks: teachingPeriodWeeks,
-        term_weeks: termWeeks,
         term_system: termSystem,
         flex_week: flexWeek,
-        term_start_dates: normalizedDates,
+        term_dates: normalizedDates,
     });
+}
+
+// ICAL IMPORT
+
+/** Grouping key for events whose summary has no detectable course code. */
+const UNCATEGORISED_KEY = 'UNCATEGORISED';
+
+// Fallback palette for auto-suggested course colours (mirrors the CreateModal swatches).
+const IMPORT_PALETTE = ['#6d8bff', '#ff7a90', '#3ecf8e', '#f0b429', '#b07cff', '#41d0d8', '#ff9d5c'];
+
+/** A course the importer proposes to create or reuse, with the events grouped under it. */
+export interface ProposedCourse {
+    key: string;
+    code?: string;
+    name: string;
+    suggestedColor: string;
+    /** Set when an existing course already has this code. */
+    matchedCourseId?: string;
+    eventCount: number;
+    /** How many of those events are not already imported. */
+    newEventCount: number;
+}
+
+export interface ImportPreview {
+    events: ParsedICalEvent[];
+    proposedCourses: ProposedCourse[];
+    alreadyImported: number;
+}
+
+/** The user's confirmed decision for one proposed course, sent back on commit. */
+export interface CourseDecision {
+    key: string;
+    include: boolean;
+    name: string;
+    code?: string;
+    color?: string;
+    /** When set, events are attached to this existing course instead of a new one. */
+    courseId?: string;
+}
+
+export interface ImportResult {
+    createdCourses: number;
+    importedEvents: number;
+    skipped: number;
+}
+
+const groupingKey = (ev: ParsedICalEvent): string => ev.detectedCode || UNCATEGORISED_KEY;
+// Imported events are dated occurrences; a UID recurs across many starts.
+const dedupKey = (ev: ParsedICalEvent): string => `O:${ev.sourceUid}:${ev.start}`;
+
+/**
+ * Fetch and parse an iCal feed, group its events by detected course code, and match
+ * each group against the user's existing courses. Persists nothing — the frontend
+ * shows this as a review screen and sends confirmed decisions back to commit.
+ */
+export async function previewICalImport(UID: string, url: string): Promise<ImportPreview> {
+    requireUser(UID);
+    if (!url || typeof url !== 'string' || !url.trim()) {
+        throw new AppError('An iCal URL is required', ERRORS.INVALID_ICAL_URL);
+    }
+
+    const ics = await fetchICS(url);
+    const events = parseICSToEvents(ics);
+
+    const existingCourses = getCoursesByUID(UID);
+    const importedKeys = getImportedSourceKeys(UID);
+
+    const groups = new Map<string, ParsedICalEvent[]>();
+    for (const ev of events) {
+        const key = groupingKey(ev);
+        const bucket = groups.get(key);
+        if (bucket) bucket.push(ev);
+        else groups.set(key, [ev]);
+    }
+
+    let colorIndex = 0;
+    const proposedCourses: ProposedCourse[] = [];
+    for (const [key, groupEvents] of groups) {
+        const code = key === UNCATEGORISED_KEY ? undefined : key;
+        const matched = code
+            ? existingCourses.find(c => (c.course_code || '').toUpperCase() === code)
+            : undefined;
+        // Prefer the longest detected name in the group — usually the descriptive one.
+        const name = code
+            ? groupEvents.reduce((best, ev) => {
+                  const candidate = ev.detectedName || '';
+                  return candidate.length > best.length ? candidate : best;
+              }, '') || code
+            : 'Uncategorised';
+        const newEventCount = groupEvents.filter(ev => !importedKeys.has(dedupKey(ev))).length;
+
+        proposedCourses.push({
+            key,
+            code,
+            name: matched?.course_name || name,
+            suggestedColor: matched?.color_code || IMPORT_PALETTE[colorIndex++ % IMPORT_PALETTE.length],
+            matchedCourseId: matched?.id,
+            eventCount: groupEvents.length,
+            newEventCount,
+        });
+    }
+
+    const alreadyImported = events.filter(ev => importedKeys.has(dedupKey(ev))).length;
+    return { events, proposedCourses, alreadyImported };
+}
+
+/**
+ * Persist a confirmed import: save the subscription URL, create/reuse the chosen
+ * courses, and insert their events, skipping any already imported (by source UID).
+ */
+export function commitICalImport(
+    UID: string,
+    url: string,
+    courseDecisions: CourseDecision[],
+    events: ParsedICalEvent[]
+): ImportResult {
+    requireUser(UID);
+    if (!url || typeof url !== 'string' || !url.trim()) {
+        throw new AppError('An iCal URL is required', ERRORS.INVALID_ICAL_URL);
+    }
+    if (!Array.isArray(events) || !Array.isArray(courseDecisions)) {
+        throw new AppError('Import events and course decisions are required', ERRORS.INVALID_ICAL_DATA);
+    }
+
+    const decisions = new Map<string, CourseDecision>();
+    courseDecisions.forEach(d => decisions.set(d.key, d));
+
+    const importedKeys = getImportedSourceKeys(UID);
+    const db = getSQLiteDB();
+
+    let createdCourses = 0;
+    let importedEvents = 0;
+    let skipped = 0;
+
+    // Resolve a course id for a group, creating a new course on first use so that
+    // re-imports (where every event is a duplicate) never leave empty courses behind.
+    const courseIdByKey = new Map<string, string | undefined>();
+    const resolveCourse = (decision: CourseDecision): string | undefined => {
+        if (courseIdByKey.has(decision.key)) return courseIdByKey.get(decision.key);
+        if (decision.courseId) {
+            courseIdByKey.set(decision.key, decision.courseId);
+            return decision.courseId;
+        }
+        const id = crypto.randomUUID();
+        createCourseRow({
+            id,
+            uid: UID,
+            course_name: (decision.name || decision.code || 'Imported').trim(),
+            course_code: decision.code?.trim() || undefined,
+            color_code: decision.color || undefined,
+            created_at: new Date().toISOString(),
+        });
+        createdCourses++;
+        courseIdByKey.set(decision.key, id);
+        return id;
+    };
+
+    const run = db.transaction(() => {
+        updateICalUrl(UID, url.trim());
+
+        for (const ev of events) {
+            const key = groupingKey(ev);
+            const decision = decisions.get(key);
+            if (!decision || !decision.include) {
+                skipped++;
+                continue;
+            }
+            const dk = dedupKey(ev);
+            if (importedKeys.has(dk)) {
+                skipped++;
+                continue;
+            }
+            // Every imported event is a dated occurrence; skip malformed ones.
+            if (!ev.start || !ev.end) {
+                skipped++;
+                continue;
+            }
+
+            const courseId = resolveCourse(decision);
+            const title = ev.summary?.trim() || 'Untitled';
+            createOneTimeEventRow({
+                id: crypto.randomUUID(),
+                uid: UID,
+                course_id: courseId,
+                title,
+                description: ev.description,
+                start_time: ev.start,
+                end_time: ev.end,
+                completed: 0,
+                source_uid: ev.sourceUid,
+                created_at: new Date().toISOString(),
+            });
+            importedKeys.add(dk);
+            importedEvents++;
+        }
+    });
+    run();
+
+    return { createdCourses, importedEvents, skipped };
 }

@@ -4,7 +4,7 @@ import {deleteSession, validateSession, login, register} from './backend/auth';
 import { initializeDB } from './backend/dbManager';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { getTasks, deleteTask, updateTaskCompletion, createTask, updateTask, toggleRecurringInstance, createCourse, getCourses, deleteCourse, createEvent, getEvents, deleteEvent, updateEvent, updateEventCompletion, toggleRecurringEventInstance, getSettings, saveSettings } from './backend/API';
+import { getTasks, deleteTask, updateTaskCompletion, createTask, updateTask, toggleRecurringInstance, createCourse, getCourses, deleteCourse, createEvent, getEvents, deleteEvent, updateEvent, updateEventCompletion, toggleRecurringEventInstance, getSettings, saveSettings, previewICalImport, commitICalImport } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -247,12 +247,33 @@ app.get("/api/settings", (req, res) => {
   res.status(200).json({ success: true, settings });
 });
 
-// save settings, expects { university: { teachingPeriodWeeks, termWeeks, termSystem, termStartDates, flexWeek } }
+// save settings, expects { university: { termSystem, termDates, flexWeek } }
 app.put("/api/settings", (req, res) => {
   const { university } = req.body;
   const UID = authenticate(req);
   saveSettings(UID, university);
   res.status(200).json({ success: true });
+});
+
+/////////////////////////////
+// ICAL IMPORT ENDPOINTS    //
+/////////////////////////////
+
+// preview an iCal import — fetch + parse + detect courses, persisting nothing.
+// expects { url }
+app.post("/api/ical/preview", async (req, res) => {
+  const { url } = req.body;
+  const UID = authenticate(req);
+  const preview = await previewICalImport(UID, url);
+  res.status(200).json({ success: true, preview });
+});
+
+// commit a confirmed iCal import, expects { url, courseDecisions, events }
+app.post("/api/ical/import", (req, res) => {
+  const { url, courseDecisions, events } = req.body;
+  const UID = authenticate(req);
+  const result = commitICalImport(UID, url, courseDecisions, events);
+  res.status(200).json({ success: true, result });
 });
 
 // Centralized error handler — any error thrown by the route handlers above

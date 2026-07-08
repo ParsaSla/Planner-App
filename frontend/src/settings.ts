@@ -10,33 +10,39 @@ export interface TermDate {
   month: number;
 }
 
+/** The start and end date of a single term. */
+export interface TermPeriod {
+  start: TermDate;
+  end: TermDate;
+}
+
 export interface UniversitySettings {
-  /** Length of a teaching period, in weeks. */
-  teachingPeriodWeeks: number;
-  /** Length of a full term, in weeks. */
-  termWeeks: number;
   /** Number of terms per year. */
   termSystem: TermSystem;
-  /** Day/month each term begins. Index 0 = Term 1, etc. */
-  termStartDates: TermDate[];
+  /** Start/end date of each term. Index 0 = Term 1, etc. */
+  termDates: TermPeriod[];
   /** Which teaching week is the flex (non-teaching) week, e.g. 5 or 6. */
   flexWeek: number;
 }
 
 export const EMPTY_TERM_DATE: TermDate = { day: 0, month: 0 };
+export const EMPTY_TERM_PERIOD: TermPeriod = {
+  start: { ...EMPTY_TERM_DATE },
+  end: { ...EMPTY_TERM_DATE },
+};
 
 export interface Settings {
   university: UniversitySettings;
+  /** Saved iCal timetable subscription URL, if the user has imported one. */
+  icalUrl?: string;
 }
 
 export const termCount = (system: TermSystem) => (system === 'TRIMESTER' ? 3 : 2);
 
 export const DEFAULT_SETTINGS: Settings = {
   university: {
-    teachingPeriodWeeks: 12,
-    termWeeks: 13,
     termSystem: 'SEMESTER',
-    termStartDates: [{ ...EMPTY_TERM_DATE }, { ...EMPTY_TERM_DATE }],
+    termDates: [{ ...EMPTY_TERM_PERIOD }, { ...EMPTY_TERM_PERIOD }],
     flexWeek: 6,
   },
 };
@@ -58,7 +64,10 @@ export function useSettings(): SettingsStore {
       .getSettings()
       .then((s) => {
         if (active) {
-          setSettings({ university: { ...DEFAULT_SETTINGS.university, ...s.university } });
+          setSettings({
+            university: { ...DEFAULT_SETTINGS.university, ...s.university },
+            icalUrl: s.icalUrl,
+          });
         }
       })
       .catch(() => {

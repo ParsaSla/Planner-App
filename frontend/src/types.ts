@@ -142,3 +142,47 @@ export interface GroupInput {
   code?: string;
   color?: string;
 }
+
+// ---- iCal import (mirrors backend/ical.ts and backend/API.ts) ----
+
+export interface ParsedICalEvent {
+  sourceUid: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  start: string; // ISO-8601
+  end: string; // ISO-8601
+  detectedCode?: string;
+  detectedName?: string;
+}
+
+export interface ProposedCourse {
+  key: string;
+  code?: string;
+  name: string;
+  suggestedColor: string;
+  matchedCourseId?: string;
+  eventCount: number;
+  newEventCount: number;
+}
+
+export interface ImportPreview {
+  events: ParsedICalEvent[];
+  proposedCourses: ProposedCourse[];
+  alreadyImported: number;
+}
+
+export interface CourseDecision {
+  key: string;
+  include: boolean;
+  name: string;
+  code?: string;
+  color?: string;
+  courseId?: string;
+}
+
+export interface ImportResult {
+  createdCourses: number;
+  importedEvents: number;
+  skipped: number;
+}
