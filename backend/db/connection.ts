@@ -22,23 +22,6 @@ function initializeSQLite(dbPath: string): void {
     sqliteDB.pragma('journal_mode = WAL');
     sqliteDB.pragma('foreign_keys = ON');
 
-    // Pre-schema migration: settings have been through two earlier layouts — a single
-    // JSON blob, then week-based columns (teaching_period_weeks/term_weeks). The current
-    // layout stores explicit per-term start/end dates instead of durations. Drop any
-    // older layout so the canonical schema below recreates it. Settings have safe
-    // defaults, so discarding stale rows is acceptable. New databases skip this.
-    const legacySettings = sqliteDB.pragma('table_info(settings)') as Array<{ name: string }>;
-    const isLegacySettings =
-        legacySettings.length > 0 &&
-        (legacySettings.find(c => c.name === 'teaching_period_weeks') !== undefined ||
-            legacySettings.find(c => c.name === 'term_weeks') !== undefined ||
-            legacySettings.find(c => c.name === 'term_system') === undefined);
-    if (isLegacySettings) {
-        sqliteDB.exec(`
-            DROP TABLE IF EXISTS settings_term_dates;
-            DROP TABLE settings;
-        `);
-    }
 
     sqliteDB.exec(`
         CREATE TABLE IF NOT EXISTS users (
@@ -57,33 +40,6 @@ function initializeSQLite(dbPath: string): void {
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
 
-        CREATE TABLE IF NOT EXISTS tasks (
-            id TEXT PRIMARY KEY,
-            uid TEXT NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            type TEXT NOT NULL,
-            date TEXT,
-            completed INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL,
-            updated_at TEXT,
-            FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS recurring_tasks (
-            id TEXT PRIMARY KEY,
-            uid TEXT NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            days_of_week TEXT,
-            time_hour INTEGER,
-            time_minute INTEGER,
-            active INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL,
-            updated_at TEXT,
-            FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
-        );
-
         CREATE TABLE IF NOT EXISTS courses (
             id TEXT PRIMARY KEY,
             uid TEXT NOT NULL,
@@ -94,56 +50,50 @@ function initializeSQLite(dbPath: string): void {
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
 
-        CREATE TABLE IF NOT EXISTS recurring_task_completions (
+        -- Unified planner item: a task (point in time) or an event (time-blocked span),
+        -- either one-time or recurring. Two discriminator columns say which:
+        --   kind       = 'TASK'  | 'EVENT'
+        --   recurrence = 'ONE_TIME' | 'RECURRING'
+        -- ONE_TIME rows use start_time/end_time (absolute ISO datetimes) and completed.
+        -- RECURRING rows use days_of_week + start_hour/minute (+ end_hour/minute for events),
+        -- and per-occurrence completion is tracked in the completions table.
+        -- EVENT rows carry an end (end_time / end_hour+end_minute); TASK rows leave it NULL.
+
+        CREATE TABLE IF NOT EXISTS icals (
             id TEXT PRIMARY KEY,
-            recurring_task_id TEXT NOT NULL,
             uid TEXT NOT NULL,
-            instance_date TEXT NOT NULL,
-            UNIQUE(recurring_task_id, instance_date),
-            FOREIGN KEY(recurring_task_id) REFERENCES recurring_tasks(id) ON DELETE CASCADE,
+            url TEXT NOT NULL,
+            active INTEGER NOT NULL,
+            last_imported TEXT NOT NULL,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
-
-        CREATE TABLE IF NOT EXISTS events (
+        
+        CREATE TABLE IF NOT EXISTS items (
             id TEXT PRIMARY KEY,
             uid TEXT NOT NULL,
-            course_id TEXT,
+            course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
+            kind TEXT NOT NULL,
+            recurrence TEXT NOT NULL,
             title TEXT NOT NULL,
             description TEXT,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            completed INTEGER NOT NULL DEFAULT 0,
-            source_uid TEXT,
+            location TEXT,
+            start_time TEXT,                       
+            end_time TEXT,                         
+            completed INTEGER,                     -- ONE_TIME only
+            days_of_week TEXT,                     -- RECURRING: JSON array of day names
+            source_uid TEXT REFERENCES icals(id) ON DELETE CASCADE,     -- iCal import UID; NULL for manual rows
             created_at TEXT NOT NULL,
             updated_at TEXT,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
 
-        CREATE TABLE IF NOT EXISTS recurring_events (
-            id TEXT PRIMARY KEY,
-            uid TEXT NOT NULL,
-            course_id TEXT,
-            title TEXT NOT NULL,
-            description TEXT,
-            days_of_week TEXT,
-            start_hour INTEGER,
-            start_minute INTEGER,
-            end_hour INTEGER,
-            end_minute INTEGER,
-            active INTEGER NOT NULL DEFAULT 1,
-            source_uid TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT,
-            FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
-        );
 
-        CREATE TABLE IF NOT EXISTS recurring_event_completions (
-            id TEXT PRIMARY KEY,
-            recurring_event_id TEXT NOT NULL,
+        CREATE TABLE IF NOT EXISTS completions (
+            item_id TEXT NOT NULL,
             uid TEXT NOT NULL,
             instance_date TEXT NOT NULL,
-            UNIQUE(recurring_event_id, instance_date),
-            FOREIGN KEY(recurring_event_id) REFERENCES recurring_events(id) ON DELETE CASCADE,
+            PRIMARY KEY (item_id, instance_date),
+            FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE CASCADE,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
 
@@ -151,7 +101,6 @@ function initializeSQLite(dbPath: string): void {
             uid TEXT PRIMARY KEY,
             term_system TEXT NOT NULL,
             flex_week INTEGER NOT NULL,
-            ical_url TEXT,
             updated_at TEXT NOT NULL,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
@@ -167,31 +116,6 @@ function initializeSQLite(dbPath: string): void {
             FOREIGN KEY(uid) REFERENCES settings(uid) ON DELETE CASCADE
         );
     `);
-
-    // Migrate: add course_id to tasks and recurring_tasks for existing databases
-    const taskCols = sqliteDB.pragma('table_info(tasks)') as Array<{ name: string }>;
-    if (!taskCols.find(c => c.name === 'course_id')) {
-        sqliteDB.exec('ALTER TABLE tasks ADD COLUMN course_id TEXT');
-    }
-    const recurringCols = sqliteDB.pragma('table_info(recurring_tasks)') as Array<{ name: string }>;
-    if (!recurringCols.find(c => c.name === 'course_id')) {
-        sqliteDB.exec('ALTER TABLE recurring_tasks ADD COLUMN course_id TEXT');
-    }
-
-    // Migrate: iCal import support — a saved subscription URL and the source UID
-    // (used to de-duplicate re-imports) on imported events.
-    const settingsCols = sqliteDB.pragma('table_info(settings)') as Array<{ name: string }>;
-    if (!settingsCols.find(c => c.name === 'ical_url')) {
-        sqliteDB.exec('ALTER TABLE settings ADD COLUMN ical_url TEXT');
-    }
-    const eventCols = sqliteDB.pragma('table_info(events)') as Array<{ name: string }>;
-    if (!eventCols.find(c => c.name === 'source_uid')) {
-        sqliteDB.exec('ALTER TABLE events ADD COLUMN source_uid TEXT');
-    }
-    const recEventCols = sqliteDB.pragma('table_info(recurring_events)') as Array<{ name: string }>;
-    if (!recEventCols.find(c => c.name === 'source_uid')) {
-        sqliteDB.exec('ALTER TABLE recurring_events ADD COLUMN source_uid TEXT');
-    }
 }
 
 export function getSQLiteDB(): Database.Database {
