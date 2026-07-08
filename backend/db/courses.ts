@@ -1,5 +1,14 @@
 import { getSQLiteDB } from './connection';
-import { CourseRow } from '../types/DBTypes';
+
+export interface CourseRow {
+    id: string;
+    uid: string;
+    course_name: string;
+    course_code?: string;
+    color_code?: string;
+    created_at: string;
+}
+
 
 export function createCourseRow(course: { id: string; uid: string; course_name: string; course_code?: string; color_code?: string; created_at: string }): void {
     const db = getSQLiteDB();

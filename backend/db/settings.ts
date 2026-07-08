@@ -1,5 +1,20 @@
 import { getSQLiteDB } from './connection';
-import { SettingsRow, SettingsTermDateRow } from '../types/DBTypes';
+
+export interface SettingsRow {
+    uid: string;
+    term_system: string;
+    flex_week: number;
+    updated_at: string;
+}
+
+export interface SettingsTermDateRow {
+    uid: string;
+    term_index: number;
+    start_day: number;
+    start_month: number;
+    end_day: number;
+    end_month: number;
+}
 
 export function getSettingsByUID(uid: string): (SettingsRow & { term_dates: SettingsTermDateRow[] }) | null {
     const db = getSQLiteDB();
@@ -52,25 +67,4 @@ export function upsertSettings(settings: {
         });
     });
     upsert();
-}
-
-/**
- * Persist the saved iCal subscription URL without disturbing the university
- * settings. Creates a settings row with safe defaults if the user has none yet.
- */
-export function updateICalUrl(uid: string, icalUrl: string | null): void {
-    const db = getSQLiteDB();
-    db.prepare(
-        `INSERT INTO settings (uid, term_system, flex_week, ical_url, updated_at)
-         VALUES (@uid, @term_system, @flex_week, @ical_url, @updated_at)
-         ON CONFLICT(uid) DO UPDATE SET
-            ical_url = @ical_url,
-            updated_at = @updated_at`
-    ).run({
-        uid,
-        term_system: 'SEMESTER',
-        flex_week: 6,
-        ical_url: icalUrl,
-        updated_at: new Date().toISOString(),
-    });
 }

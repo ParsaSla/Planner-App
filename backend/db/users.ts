@@ -1,5 +1,19 @@
 import { getSQLiteDB } from './connection';
-import { UserRow, SessionRow } from '../types/DBTypes';
+
+export interface UserRow {
+    uid: string;
+    username: string;
+    password_hash: string;
+    salt: string;
+    created_at: string;
+    last_login?: string;
+}
+
+export interface SessionRow {
+    sid: string;
+    uid: string;
+    expires: string;
+}
 
 export function createUserRow(user: UserRow): void {
     const db = getSQLiteDB();
