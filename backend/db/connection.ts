@@ -54,10 +54,24 @@ function initializeSQLite(dbPath: string): void {
         -- either one-time or recurring. Two discriminator columns say which:
         --   kind       = 'TASK'  | 'EVENT'
         --   recurrence = 'ONE_TIME' | 'RECURRING'
-        -- ONE_TIME rows use start_time/end_time (absolute ISO datetimes) and completed.
-        -- RECURRING rows use days_of_week + start_hour/minute (+ end_hour/minute for events),
-        -- and per-occurrence completion is tracked in the completions table.
-        -- EVENT rows carry an end (end_time / end_hour+end_minute); TASK rows leave it NULL.
+        -- ONE_TIME rows use date + start_time/end_time and completed.
+        -- RECURRING rows are described by a single iCal RRULE in rrule (+ exdate/rdate),
+        -- anchored by start_date/start_time; an app-native weekly pattern is just
+        -- FREQ=WEEKLY;BYDAY=... Per-occurrence completion is tracked in the completions
+        -- table. EVENT rows carry an end; TASK rows leave it NULL.
+        --
+        -- iCal import: one row per VEVENT series (recurring events keep their RRULE rather
+        -- than being expanded). VEVENT property -> column mapping:
+        --   UID          -> ical_uid
+        --   SUMMARY      -> title
+        --   DESCRIPTION  -> description
+        --   LOCATION     -> location
+        --   DTSTART      -> start_date (RRULE anchor) + start_time (its time-of-day); also date for ONE_TIME
+        --   DTEND        -> end_date   (occurrence duration) + end_time (its time-of-day)
+        --   RRULE        -> rrule
+        --   EXDATE       -> exdate
+        --   RDATE        -> rdate
+        -- (source_uid is the icals.id of the subscription, not an iCal property.)
 
         CREATE TABLE IF NOT EXISTS icals (
             id INTEGER PRIMARY KEY,
@@ -74,17 +88,20 @@ function initializeSQLite(dbPath: string): void {
             course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,
             kind TEXT NOT NULL,
             recurrence TEXT NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            location TEXT,
-            date TEXT,                             -- ONE_TIME: calendar date (YYYY-MM-DD)
-            start_date TEXT,                       -- ONE_TIME: task due datetime / event start (ISO-8601)
-            end_date TEXT,                         -- ONE_TIME event end (ISO-8601); NULL for tasks
+            title TEXT NOT NULL,                   -- iCal: VEVENT SUMMARY
+            description TEXT,                       -- iCal: VEVENT DESCRIPTION
+            location TEXT,                          -- iCal: VEVENT LOCATION
+            date TEXT,                             -- ONE_TIME: calendar date (YYYY-MM-DD). iCal ONE_TIME: DTSTART
+            start_date TEXT,                       -- ONE_TIME: task due datetime / event start (ISO-8601). iCal: DTSTART (RRULE anchor)
+            end_date TEXT,                         -- ONE_TIME event end (ISO-8601); NULL for tasks. iCal: DTEND
             completed INTEGER,                     -- ONE_TIME only
-            days_of_week TEXT,                     -- RECURRING: JSON array of day names
-            start_time TEXT,                        -- RECURRING: ISO time string (HH:mm:ss)
-            end_time TEXT,                          -- RECURRING: ISO time string (HH:mm:ss)
-            source_uid INTEGER REFERENCES icals(id) ON DELETE CASCADE,  -- iCal subscription id; NULL for manual rows
+            start_time TEXT,                        -- RECURRING: ISO time string (HH:mm:ss). iCal: time-of-day of DTSTART
+            end_time TEXT,                          -- RECURRING: ISO time string (HH:mm:ss). iCal: time-of-day of DTEND
+            source_uid INTEGER REFERENCES icals(id) ON DELETE CASCADE,  -- iCal subscription id (icals.id, not a VEVENT field); NULL for manual rows
+            ical_uid TEXT,                          -- iCal: VEVENT UID (stable identity within a subscription); NULL for manual rows
+            rrule TEXT,                             -- RECURRING: the recurrence rule (app-native weekly = FREQ=WEEKLY;BYDAY=...; iCal = VEVENT RRULE); NULL for ONE_TIME
+            exdate TEXT,                            -- iCal RECURRING: VEVENT EXDATE, JSON array of excluded ISO datetimes (term breaks / holidays)
+            rdate TEXT,                             -- iCal RECURRING: VEVENT RDATE, JSON array of extra ISO datetimes
             created_at TEXT NOT NULL,
             updated_at TEXT,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
@@ -119,6 +136,33 @@ function initializeSQLite(dbPath: string): void {
             FOREIGN KEY(uid) REFERENCES settings(uid) ON DELETE CASCADE
         );
     `);
+
+    migrateItemsColumns(sqliteDB);
+}
+
+// There is no migration framework — CREATE TABLE IF NOT EXISTS never alters an existing
+// table. Additively backfill any iCal columns missing from an older `items` table so
+// existing dev databases pick them up without a manual reset.
+function migrateItemsColumns(db: Database.Database): void {
+    const existing = new Set(
+        db.prepare(`PRAGMA table_info(items)`).all().map((col) => (col as { name: string }).name)
+    );
+    const additions: Record<string, string> = {
+        ical_uid: 'TEXT',
+        rrule: 'TEXT',
+        exdate: 'TEXT',
+        rdate: 'TEXT',
+    };
+    for (const [name, type] of Object.entries(additions)) {
+        if (!existing.has(name)) {
+            db.exec(`ALTER TABLE items ADD COLUMN ${name} ${type}`);
+        }
+    }
+    // Recurrence is now expressed as an RRULE in `rrule` (app-native weekly included), so the
+    // old weekly-only `days_of_week` column is retired. Drop it from pre-existing dev DBs.
+    if (existing.has('days_of_week')) {
+        db.exec(`ALTER TABLE items DROP COLUMN days_of_week`);
+    }
 }
 
 export function getSQLiteDB(): Database.Database {

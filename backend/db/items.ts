@@ -14,10 +14,13 @@ export interface ItemRow {
     start_date: string | null;
     end_date: string | null;
     completed: number | null;
-    days_of_week: string | null;
     start_time: string | null;
     end_time: string | null;
     source_uid: number | null;
+    ical_uid: string | null;     // iCal source VEVENT UID; NULL for manual rows
+    rrule: string | null;        // iCal RECURRING: raw RRULE value; NULL otherwise
+    exdate: string | null;       // iCal RECURRING: JSON array of excluded ISO datetimes
+    rdate: string | null;        // iCal RECURRING: JSON array of extra ISO datetimes
     created_at: string;
     updated_at: string | null;
 }
@@ -33,9 +36,11 @@ const UPDATABLE_COLUMNS = [
     'start_date',
     'end_date',
     'completed',
-    'days_of_week',
     'start_time',
     'end_time',
+    'rrule',
+    'exdate',
+    'rdate',
 ] as const;
 
 type UpdatableColumn = typeof UPDATABLE_COLUMNS[number];
@@ -54,17 +59,20 @@ export function createItemRow(item: {
     start_date?: string | null;
     end_date?: string | null;
     completed?: number | null;
-    days_of_week?: string | null;
     start_time?: string | null;
     end_time?: string | null;
     source_uid?: number | null;
+    ical_uid?: string | null;
+    rrule?: string | null;
+    exdate?: string | null;
+    rdate?: string | null;
     created_at: string;
     updated_at?: string | null;
 }): number {
     const db = getSQLiteDB();
     const info = db.prepare(
-        `INSERT INTO items (uid, course_id, kind, recurrence, title, description, location, date, start_date, end_date, completed, days_of_week, start_time, end_time, source_uid, created_at, updated_at)
-         VALUES (@uid, @course_id, @kind, @recurrence, @title, @description, @location, @date, @start_date, @end_date, @completed, @days_of_week, @start_time, @end_time, @source_uid, @created_at, @updated_at)`
+        `INSERT INTO items (uid, course_id, kind, recurrence, title, description, location, date, start_date, end_date, completed, start_time, end_time, source_uid, ical_uid, rrule, exdate, rdate, created_at, updated_at)
+         VALUES (@uid, @course_id, @kind, @recurrence, @title, @description, @location, @date, @start_date, @end_date, @completed, @start_time, @end_time, @source_uid, @ical_uid, @rrule, @exdate, @rdate, @created_at, @updated_at)`
     ).run({
         ...item,
         course_id: item.course_id ?? null,
@@ -74,10 +82,13 @@ export function createItemRow(item: {
         start_date: item.start_date ?? null,
         end_date: item.end_date ?? null,
         completed: item.completed ?? null,
-        days_of_week: item.days_of_week ?? null,
         start_time: item.start_time ?? null,
         end_time: item.end_time ?? null,
         source_uid: item.source_uid ?? null,
+        ical_uid: item.ical_uid ?? null,
+        rrule: item.rrule ?? null,
+        exdate: item.exdate ?? null,
+        rdate: item.rdate ?? null,
         updated_at: item.updated_at ?? null,
     });
     return Number(info.lastInsertRowid);
@@ -86,6 +97,14 @@ export function createItemRow(item: {
 export function getItemsByUID(uid: string): ItemRow[] {
     const db = getSQLiteDB();
     return db.prepare<{ uid: string }, ItemRow>('SELECT * FROM items WHERE uid = @uid ORDER BY created_at ASC').all({ uid });
+}
+
+/** All items imported from a given iCal subscription (by icals.id). */
+export function getItemsBySourceUid(uid: string, sourceUid: number): ItemRow[] {
+    const db = getSQLiteDB();
+    return db.prepare<{ uid: string; source_uid: number }, ItemRow>(
+        'SELECT * FROM items WHERE uid = @uid AND source_uid = @source_uid'
+    ).all({ uid, source_uid: sourceUid });
 }
 
 export function getItemById(uid: string, itemId: number): ItemRow | null {
