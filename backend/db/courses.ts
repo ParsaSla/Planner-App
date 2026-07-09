@@ -1,7 +1,7 @@
 import { getSQLiteDB } from './connection';
 
 export interface CourseRow {
-    id: string;
+    id: number;
     uid: string;
     course_name: string;
     course_code?: string;
@@ -10,12 +10,14 @@ export interface CourseRow {
 }
 
 
-export function createCourseRow(course: { id: string; uid: string; course_name: string; course_code?: string; color_code?: string; created_at: string }): void {
+/** Inserts a course and returns its auto-assigned id. */
+export function createCourseRow(course: { uid: string; course_name: string; course_code?: string; color_code?: string; created_at: string }): number {
     const db = getSQLiteDB();
-    db.prepare(
-        `INSERT INTO courses (id, uid, course_name, course_code, color_code, created_at)
-         VALUES (@id, @uid, @course_name, @course_code, @color_code, @created_at)`
+    const info = db.prepare(
+        `INSERT INTO courses (uid, course_name, course_code, color_code, created_at)
+         VALUES (@uid, @course_name, @course_code, @color_code, @created_at)`
     ).run({ ...course, course_code: course.course_code ?? null, color_code: course.color_code ?? null });
+    return Number(info.lastInsertRowid);
 }
 
 export function getCoursesByUID(uid: string): CourseRow[] {
@@ -23,13 +25,13 @@ export function getCoursesByUID(uid: string): CourseRow[] {
     return db.prepare<{ uid: string }, CourseRow>('SELECT * FROM courses WHERE uid = @uid ORDER BY course_name ASC').all({ uid });
 }
 
-export function getCourseById(uid: string, courseId: string): CourseRow | null {
+export function getCourseById(uid: string, courseId: number): CourseRow | null {
     const db = getSQLiteDB();
-    const row = db.prepare<{ uid: string; id: string }, CourseRow>('SELECT * FROM courses WHERE uid = @uid AND id = @id').get({ uid, id: courseId });
+    const row = db.prepare<{ uid: string; id: number }, CourseRow>('SELECT * FROM courses WHERE uid = @uid AND id = @id').get({ uid, id: courseId });
     return row || null;
 }
 
-export function deleteCourseById(uid: string, courseId: string): number {
+export function deleteCourseById(uid: string, courseId: number): number {
     const db = getSQLiteDB();
     return db.prepare('DELETE FROM courses WHERE uid = @uid AND id = @id').run({ uid, id: courseId }).changes;
 }
