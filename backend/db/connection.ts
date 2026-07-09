@@ -41,7 +41,7 @@ function initializeSQLite(dbPath: string): void {
         );
 
         CREATE TABLE IF NOT EXISTS courses (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             uid TEXT NOT NULL,
             course_name TEXT NOT NULL,
             course_code TEXT,
@@ -60,7 +60,7 @@ function initializeSQLite(dbPath: string): void {
         -- EVENT rows carry an end (end_time / end_hour+end_minute); TASK rows leave it NULL.
 
         CREATE TABLE IF NOT EXISTS icals (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             uid TEXT NOT NULL,
             url TEXT NOT NULL,
             active INTEGER NOT NULL,
@@ -69,19 +69,22 @@ function initializeSQLite(dbPath: string): void {
         );
         
         CREATE TABLE IF NOT EXISTS items (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             uid TEXT NOT NULL,
-            course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
+            course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,
             kind TEXT NOT NULL,
             recurrence TEXT NOT NULL,
             title TEXT NOT NULL,
             description TEXT,
             location TEXT,
-            start_time TEXT,                       
-            end_time TEXT,                         
+            date TEXT,                             -- ONE_TIME: calendar date (YYYY-MM-DD)
+            start_date TEXT,                       -- ONE_TIME: task due datetime / event start (ISO-8601)
+            end_date TEXT,                         -- ONE_TIME event end (ISO-8601); NULL for tasks
             completed INTEGER,                     -- ONE_TIME only
             days_of_week TEXT,                     -- RECURRING: JSON array of day names
-            source_uid TEXT REFERENCES icals(id) ON DELETE CASCADE,     -- iCal import UID; NULL for manual rows
+            start_time TEXT,                        -- RECURRING: ISO time string (HH:mm:ss)
+            end_time TEXT,                          -- RECURRING: ISO time string (HH:mm:ss)
+            source_uid INTEGER REFERENCES icals(id) ON DELETE CASCADE,  -- iCal subscription id; NULL for manual rows
             created_at TEXT NOT NULL,
             updated_at TEXT,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
@@ -89,7 +92,7 @@ function initializeSQLite(dbPath: string): void {
 
 
         CREATE TABLE IF NOT EXISTS completions (
-            item_id TEXT NOT NULL,
+            item_id INTEGER NOT NULL,
             uid TEXT NOT NULL,
             instance_date TEXT NOT NULL,
             PRIMARY KEY (item_id, instance_date),
