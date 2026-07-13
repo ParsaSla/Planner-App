@@ -1,11 +1,12 @@
 -- University Student Planner App - Database Schema
 -- SQLite3 Database Schema
 --
--- This file reflects the schema as actually created/managed at runtime by
--- backend/dbManager.ts. IDs are TEXT (UUIDs generated with crypto.randomUUID()),
+-- This file reflects the schema as actually created at runtime by
+-- backend/db/connection.ts. IDs are TEXT (UUIDs generated with crypto.randomUUID()),
 -- timestamps are stored as TEXT (ISO-8601 strings), and booleans are stored as
 -- INTEGER (0/1). PRAGMA foreign_keys = ON and journal_mode = WAL are enabled on
--- connection.
+-- connection. There are no migrations: connect only creates missing tables and does not
+-- reconcile databases from older schema versions — delete the DB file to rebuild.
 
 -- ============================================================================
 -- PHASE 1: Core Tables
@@ -29,107 +30,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
 );
 
--- Tasks Table (one-time tasks)
-CREATE TABLE IF NOT EXISTS tasks (
-  id TEXT PRIMARY KEY,
-  uid TEXT NOT NULL,
-  course_id TEXT,                       -- nullable; added via migration, no FK enforced
-  title TEXT NOT NULL,
-  description TEXT,
-  type TEXT NOT NULL,
-  date TEXT,
-  completed INTEGER NOT NULL DEFAULT 0,  -- 0 = false, 1 = true
-  created_at TEXT NOT NULL,
-  updated_at TEXT,
-  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
-);
-
--- Recurring Tasks Table
-CREATE TABLE IF NOT EXISTS recurring_tasks (
-  id TEXT PRIMARY KEY,
-  uid TEXT NOT NULL,
-  course_id TEXT,                       -- nullable; added via migration, no FK enforced
-  title TEXT NOT NULL,
-  description TEXT,
-  days_of_week TEXT,                    -- JSON array of day names, e.g. ["MONDAY","WEDNESDAY"]
-  time_hour INTEGER,
-  time_minute INTEGER,
-  active INTEGER NOT NULL DEFAULT 1,    -- 0 = false, 1 = true
-  created_at TEXT NOT NULL,
-  updated_at TEXT,
-  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
-);
-
--- Recurring Task Completions Table
--- Tracks which individual occurrences of a recurring task have been completed.
--- A row exists only for completed instances; absence means not completed.
-CREATE TABLE IF NOT EXISTS recurring_task_completions (
-  id TEXT PRIMARY KEY,
-  recurring_task_id TEXT NOT NULL,
-  uid TEXT NOT NULL,
-  instance_date TEXT NOT NULL,          -- the specific occurrence date (YYYY-MM-DD)
-  UNIQUE(recurring_task_id, instance_date),
-  FOREIGN KEY (recurring_task_id) REFERENCES recurring_tasks(id) ON DELETE CASCADE,
-  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
-);
-
--- Events Table (one-time events with a start and end)
--- Like tasks but time-blocked: they span a start_time..end_time rather than a
--- single date. type is always ONE_TIME for rows in this table.
-CREATE TABLE IF NOT EXISTS events (
-  id TEXT PRIMARY KEY,
-  uid TEXT NOT NULL,
-  course_id TEXT,                       -- nullable; no FK enforced
-  title TEXT NOT NULL,
-  description TEXT,
-  start_time TEXT NOT NULL,             -- ISO-8601 start datetime
-  end_time TEXT NOT NULL,               -- ISO-8601 end datetime
-  completed INTEGER NOT NULL DEFAULT 0,  -- 0 = false, 1 = true
-  source_uid TEXT,                      -- iCal UID for imported events; NULL for manual ones
-  created_at TEXT NOT NULL,
-  updated_at TEXT,
-  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
-);
-
--- Recurring Events Table
-CREATE TABLE IF NOT EXISTS recurring_events (
-  id TEXT PRIMARY KEY,
-  uid TEXT NOT NULL,
-  course_id TEXT,                       -- nullable; no FK enforced
-  title TEXT NOT NULL,
-  description TEXT,
-  days_of_week TEXT,                    -- JSON array of day names, e.g. ["MONDAY","WEDNESDAY"]
-  start_hour INTEGER,
-  start_minute INTEGER,
-  end_hour INTEGER,
-  end_minute INTEGER,
-  active INTEGER NOT NULL DEFAULT 1,    -- 0 = false, 1 = true
-  source_uid TEXT,                      -- iCal UID for imported events; NULL for manual ones
-  created_at TEXT NOT NULL,
-  updated_at TEXT,
-  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
-);
-
--- Recurring Event Completions Table
--- Tracks which individual occurrences of a recurring event have been completed.
--- A row exists only for completed instances; absence means not completed.
-CREATE TABLE IF NOT EXISTS recurring_event_completions (
-  id TEXT PRIMARY KEY,
-  recurring_event_id TEXT NOT NULL,
-  uid TEXT NOT NULL,
-  instance_date TEXT NOT NULL,          -- the specific occurrence date (YYYY-MM-DD)
-  UNIQUE(recurring_event_id, instance_date),
-  FOREIGN KEY (recurring_event_id) REFERENCES recurring_events(id) ON DELETE CASCADE,
-  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
-);
-
--- ============================================================================
--- PHASE 3: Student Features Tables
--- ============================================================================
-
 -- Courses Table (for categorization and grouping)
 CREATE TABLE IF NOT EXISTS courses (
-  id TEXT PRIMARY KEY,
+  id INTEGER PRIMARY KEY,                -- auto-incrementing rowid
   uid TEXT NOT NULL,
   course_name TEXT NOT NULL,
   course_code TEXT,
@@ -138,13 +41,81 @@ CREATE TABLE IF NOT EXISTS courses (
   FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
 );
 
+-- Items Table (unified tasks + events, one-time + recurring)
+-- A single table replaces the former tasks / recurring_tasks / events / recurring_events.
+-- Two discriminator columns say what a row is:
+--   kind       = 'TASK'  (a point in time) | 'EVENT' (a time-blocked span)
+--   recurrence = 'ONE_TIME' | 'RECURRING'
+-- ONE_TIME rows use start_time/end_time and `completed`.
+-- RECURRING rows are described by an iCal RRULE in `rrule` (+ exdate/rdate), anchored by
+-- start_date/start_time; an app-native weekly pattern is just FREQ=WEEKLY;BYDAY=...
+-- Per-occurrence completion lives in the completions table below.
+-- EVENT rows carry an end (end_time / end_date); TASK rows leave it NULL.
+-- iCal imports are stored one row per VEVENT series: recurring VEVENTs keep their RRULE
+-- (rather than being expanded), anchored by start_date/start_time with duration from
+-- end_date/end_time, and identified by ical_uid within their source subscription.
+CREATE TABLE IF NOT EXISTS items (
+  id INTEGER PRIMARY KEY,               -- auto-incrementing rowid
+  uid TEXT NOT NULL,
+  course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,  -- nullable
+  kind TEXT NOT NULL,                   -- 'TASK' | 'EVENT'
+  recurrence TEXT NOT NULL,             -- 'ONE_TIME' | 'RECURRING'
+  title TEXT NOT NULL,
+  description TEXT,
+  location TEXT,                        -- free-text location, e.g. from an imported VEVENT
+  start_date TEXT,                      -- ONE_TIME: task due datetime / event start (ISO-8601);
+                                         -- iCal RECURRING: the RRULE anchor (master DTSTART)
+  end_date TEXT,                        -- ONE_TIME event end (ISO-8601); NULL for tasks;
+                                         -- iCal RECURRING: master DTEND (occurrence duration)
+  completed INTEGER,                    -- ONE_TIME only; 0 = false, 1 = true, NULL otherwise
+  start_time TEXT,                      -- RECURRING: time-of-day (HH:mm:ss)
+  end_time TEXT,                        -- RECURRING: time-of-day (HH:mm:ss); events only
+  source_uid INTEGER REFERENCES icals(id) ON DELETE CASCADE,  -- which iCal subscription this
+                                         -- was imported from; NULL for manually created rows
+  ical_uid TEXT,                        -- iCal: source VEVENT UID (stable re-import identity); NULL for manual rows
+  rrule TEXT,                           -- RECURRING recurrence rule (app-native weekly = FREQ=WEEKLY;BYDAY=...; iCal = VEVENT RRULE)
+  exdate TEXT,                          -- iCal RECURRING: JSON array of excluded ISO datetimes (term breaks)
+  rdate TEXT,                           -- iCal RECURRING: JSON array of extra ISO datetimes
+  created_at TEXT NOT NULL,
+  updated_at TEXT,
+  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+);
+
+-- iCals Table (saved calendar subscriptions)
+-- One row per iCal/webcal feed a user has added. items.source_uid -> icals.id records
+-- which subscription an imported item came from; deleting a subscription cascades to
+-- its imported items.
+CREATE TABLE IF NOT EXISTS icals (
+  id INTEGER PRIMARY KEY,               -- auto-incrementing rowid
+  uid TEXT NOT NULL,
+  url TEXT NOT NULL,                    -- the iCal/webcal feed URL
+  active INTEGER NOT NULL,              -- 0/1, whether the subscription is still syncing
+  last_imported TEXT NOT NULL,          -- ISO-8601 timestamp of the last successful import
+  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+);
+
+-- Completions Table (per-occurrence completion for RECURRING items)
+-- A row exists only for completed instances; absence means not completed. item_id -> items(id),
+-- so completions cascade-delete when the item is removed.
+CREATE TABLE IF NOT EXISTS completions (
+  item_id INTEGER NOT NULL,
+  uid TEXT NOT NULL,
+  instance_date TEXT NOT NULL,          -- the specific occurrence date (YYYY-MM-DD)
+  PRIMARY KEY (item_id, instance_date),
+  FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+  FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+);
+
+-- ============================================================================
+-- PHASE 3: Student Features Tables
+-- ============================================================================
+
 -- Settings Table (per-user university/app settings)
 -- One row per user. term_dates are stored in a companion table below.
 CREATE TABLE IF NOT EXISTS settings (
   uid TEXT PRIMARY KEY,
   term_system TEXT NOT NULL,            -- 'SEMESTER' (2 terms) or 'TRIMESTER' (3 terms)
   flex_week INTEGER NOT NULL,           -- which teaching week is the flex/non-teaching week
-  ical_url TEXT,                        -- saved iCal timetable subscription URL (nullable)
   updated_at TEXT NOT NULL,
   FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
 );
@@ -167,41 +138,33 @@ CREATE TABLE IF NOT EXISTS settings_term_dates (
 CREATE TABLE IF NOT EXISTS study_logs (
   id TEXT PRIMARY KEY,
   uid TEXT NOT NULL,
-  task_id TEXT,
+  item_id TEXT,
   start_time TEXT NOT NULL,
   end_time TEXT,
   duration_minutes INTEGER,
   notes TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE,
-  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+  FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
 );
 
 -- ============================================================================
 -- INDEXES for Performance
 -- ============================================================================
 
-CREATE INDEX IF NOT EXISTS idx_tasks_uid ON tasks(uid);
-CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(date);
-CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed);
-CREATE INDEX IF NOT EXISTS idx_tasks_course_id ON tasks(course_id);
-CREATE INDEX IF NOT EXISTS idx_recurring_tasks_uid ON recurring_tasks(uid);
-CREATE INDEX IF NOT EXISTS idx_recurring_tasks_active ON recurring_tasks(active);
-CREATE INDEX IF NOT EXISTS idx_recurring_tasks_course_id ON recurring_tasks(course_id);
-CREATE INDEX IF NOT EXISTS idx_recurring_completions_task ON recurring_task_completions(recurring_task_id);
-CREATE INDEX IF NOT EXISTS idx_recurring_completions_uid ON recurring_task_completions(uid);
-CREATE INDEX IF NOT EXISTS idx_events_uid ON events(uid);
-CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time);
-CREATE INDEX IF NOT EXISTS idx_events_completed ON events(completed);
-CREATE INDEX IF NOT EXISTS idx_events_course_id ON events(course_id);
-CREATE INDEX IF NOT EXISTS idx_recurring_events_uid ON recurring_events(uid);
-CREATE INDEX IF NOT EXISTS idx_recurring_events_active ON recurring_events(active);
-CREATE INDEX IF NOT EXISTS idx_recurring_events_course_id ON recurring_events(course_id);
-CREATE INDEX IF NOT EXISTS idx_recurring_event_completions_event ON recurring_event_completions(recurring_event_id);
-CREATE INDEX IF NOT EXISTS idx_recurring_event_completions_uid ON recurring_event_completions(uid);
+-- Not yet created by connection.ts; listed here as the intended indexing plan.
+CREATE INDEX IF NOT EXISTS idx_items_uid ON items(uid);
+-- The app fetches an item set by (uid, kind, recurrence), so a composite index fits best.
+CREATE INDEX IF NOT EXISTS idx_items_uid_kind_recurrence ON items(uid, kind, recurrence);
+CREATE INDEX IF NOT EXISTS idx_items_start_time ON items(start_time);
+CREATE INDEX IF NOT EXISTS idx_items_course_id ON items(course_id);
+CREATE INDEX IF NOT EXISTS idx_items_source_uid ON items(source_uid);
+-- completions(item_id) is already the leftmost PK column, so only uid needs its own index.
+CREATE INDEX IF NOT EXISTS idx_completions_uid ON completions(uid);
 CREATE INDEX IF NOT EXISTS idx_courses_uid ON courses(uid);
+CREATE INDEX IF NOT EXISTS idx_icals_uid ON icals(uid);
 CREATE INDEX IF NOT EXISTS idx_study_logs_uid ON study_logs(uid);
-CREATE INDEX IF NOT EXISTS idx_study_logs_task_id ON study_logs(task_id);
+CREATE INDEX IF NOT EXISTS idx_study_logs_item_id ON study_logs(item_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_uid ON sessions(uid);
 
 -- ============================================================================
@@ -211,7 +174,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_uid ON sessions(uid);
 -- Conventions:
 --   - All primary keys are TEXT UUIDs (crypto.randomUUID()).
 --   - All timestamps/dates are TEXT ISO-8601 strings.
---   - Booleans (completed, active) are stored as INTEGER 0/1.
+--   - Booleans (completed) are stored as INTEGER 0/1.
 --
 -- Users Table:
 --   - uid: Unique user identifier (UUID)
@@ -225,44 +188,45 @@ CREATE INDEX IF NOT EXISTS idx_sessions_uid ON sessions(uid);
 --   - uid: User ID (foreign key)
 --   - expires: Session expiration timestamp
 --
--- Tasks Table:
---   - course_id: Associated course/category (nullable). Added by an ALTER TABLE
---     migration in dbManager.ts for existing databases; no FK constraint is
---     enforced on this column.
+-- Items Table:
+--   - Unifies the former tasks / recurring_tasks / events / recurring_events tables.
+--   - kind: 'TASK' (a point in time) or 'EVENT' (a time-blocked span with an end).
+--   - recurrence: 'ONE_TIME' or 'RECURRING'.
+--   - ONE_TIME rows: start_date (task due datetime / event start),
+--     end_date (event end, NULL for tasks), completed.
+--   - RECURRING rows: days_of_week (JSON array of day names). Expanded on the fly into
+--     individual instances for display (4-week window); per-occurrence completion lives
+--     in the completions table.
+--   - location: free-text location, e.g. carried over from an imported VEVENT.
+--   - course_id: Associated course/category (nullable), FK to courses(id) ON DELETE SET NULL.
+--   - source_uid: FK to icals(id) ON DELETE CASCADE — which iCal subscription an item was
+--     imported from; NULL for rows created by hand (see the iCal import notes below).
 --
--- Recurring Tasks Table:
---   - days_of_week: JSON array of day names, e.g. ["MONDAY","WEDNESDAY","FRIDAY"]
---   - time_hour, time_minute: Time of day (24-hour) for the recurring task
---   - active: Whether the recurring task is currently active
---   - Expanded on-the-fly into individual instances for display (4-week window)
+-- iCals Table:
+--   - One row per saved iCal/webcal subscription (id, url, active, last_imported).
+--   - items.source_uid -> icals.id; deleting a subscription cascades to its imported items.
 --
--- Recurring Task Completions Table:
---   - Records completion of a single occurrence (instance_date) of a recurring
---     task. Presence of a row = that instance is completed.
---   - UNIQUE(recurring_task_id, instance_date) prevents duplicate completions.
+-- Completions Table:
+--   - Records completion of a single occurrence (instance_date) of a RECURRING item (task or
+--     event). Presence of a row = that instance is completed.
+--   - item_id -> items(id); PRIMARY KEY (item_id, instance_date) prevents duplicates, and the
+--     FK cascade removes completions when the owning item is deleted.
 --
 -- Courses Table (Phase 3):
 --   - course_name: Course name (e.g., "Data Structures")
 --   - course_code: Optional course code (e.g., "CS201")
 --   - color_code: Hex color for UI categorization
 --
--- Events / Recurring Events Tables:
---   - source_uid: The iCal UID of an event imported from an iCal feed; NULL for
---     events created by hand. Combined with start_time it de-duplicates re-imports
---     (see the iCal import notes below). Added via an ALTER TABLE migration in
---     dbManager.ts for existing databases.
---
 -- Settings / Settings Term Dates Tables:
---   - One settings row per user (term_system, flex_week, ical_url). Older week-based
---     layouts are dropped-and-recreated on connect; ical_url is added via ALTER TABLE
---     for existing databases.
+--   - One settings row per user (term_system, flex_week).
 --   - settings_term_dates holds each term's start/end as day+month (year-agnostic).
 --
 -- iCal Import:
---   - A timetable iCal/webcal URL is saved in settings.ical_url. On import, each
---     VEVENT is expanded into its concrete occurrences and stored as one-time rows in
---     `events` with source_uid set. Re-imports skip rows whose (source_uid, start_time)
---     already exist, so re-syncing adds only new occurrences.
+--   - A timetable iCal/webcal subscription is saved as a row in `icals` (url, active,
+--     last_imported). On import, each VEVENT is expanded into its concrete occurrences and
+--     stored as ONE_TIME EVENT rows in `items` with source_uid set to the subscription's id.
+--     Re-imports skip rows whose (source_uid, start_date) already exist, so re-syncing adds
+--     only new occurrences.
 --
 -- Study Logs Table (Phase 3B — PLANNED):
 --   - Not yet created by dbManager.ts. Included here as the intended design.
