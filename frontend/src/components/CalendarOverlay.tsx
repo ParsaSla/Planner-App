@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Store } from '../useStore';
-import type { PlannerItem, TaskInstance } from '../types';
-import { isRecurringItem } from '../types';
+import type { Item, ItemOccurrence } from '../types';
 import {
   addDays,
   dayKey,
-  expandInstances,
   formatTime,
   isToday,
   longDate,
@@ -21,18 +19,32 @@ type CalView = 'day' | 'week' | 'month';
 interface Props {
   store: Store;
   onClose: () => void;
-  onEdit: (item: PlannerItem) => void;
-}
-
-// Tasks and events combined — the calendar shows both on one timeline.
-function calendarItems(store: Store): PlannerItem[] {
-  return [...store.tasks, ...store.events];
+  onEdit: (item: Item) => void;
 }
 
 const HEAD_H = 54;
-const ALLDAY_H = 46;
 const HOUR_H = 48;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+// Compute the [start, end) window the current view covers.
+function viewRange(view: CalView, anchor: Date): { start: Date; end: Date } {
+  if (view === 'month') {
+    const start = startOfWeek(startOfMonth(anchor));
+    return { start, end: addDays(start, 42) };
+  }
+  if (view === 'week') {
+    const start = startOfWeek(anchor);
+    return { start, end: addDays(start, 7) };
+  }
+  const start = startOfDay(anchor);
+  return { start, end: addDays(start, 1) };
+}
+
+/** Route an occurrence's edit back to its source item. */
+function editSource(store: Store, occ: ItemOccurrence, onEdit: (item: Item) => void) {
+  const src = store.items.find((it) => it.id === occ.id);
+  if (src) onEdit(src);
+}
 
 export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
   const [view, setView] = useState<CalView>('week'); // week is the default
@@ -43,6 +55,12 @@ export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Refetch occurrences whenever the visible window changes.
+  useEffect(() => {
+    const { start, end } = viewRange(view, anchor);
+    store.loadOccurrences(start, end);
+  }, [view, anchor, store.loadOccurrences]);
 
   const shift = (dir: number) => {
     if (view === 'day') setAnchor((a) => addDays(a, dir));
@@ -117,17 +135,17 @@ export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
 }
 
 // ---------------- Month ----------------
-function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEdit: (t: PlannerItem) => void }) {
+function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEdit: (t: Item) => void }) {
   const gridStart = startOfWeek(startOfMonth(anchor));
   const weeks = useMemo(() => {
-    const all = expandInstances(calendarItems(store), gridStart, addDays(gridStart, 42));
-    const byDay = new Map<string, TaskInstance[]>();
-    for (const inst of all) {
-      const arr = byDay.get(inst.dateKey) ?? [];
-      arr.push(inst);
-      byDay.set(inst.dateKey, arr);
+    const byDay = new Map<string, ItemOccurrence[]>();
+    for (const occ of store.occurrences) {
+      const key = dayKey(new Date(occ.start));
+      const arr = byDay.get(key) ?? [];
+      arr.push(occ);
+      byDay.set(key, arr);
     }
-    const ws: { date: Date; inMonth: boolean; items: TaskInstance[] }[][] = [];
+    const ws: { date: Date; inMonth: boolean; items: ItemOccurrence[] }[][] = [];
     for (let w = 0; w < 6; w++) {
       const row = [];
       for (let d = 0; d < 7; d++) {
@@ -141,7 +159,7 @@ function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEd
       ws.push(row);
     }
     return ws;
-  }, [store.tasks, store.events, gridStart, anchor]);
+  }, [store.occurrences, gridStart, anchor]);
 
   return (
     <div className="month">
@@ -159,18 +177,18 @@ function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEd
                 key={ci}
               >
                 <div className="num">{cell.date.getDate()}</div>
-                {cell.items.slice(0, 3).map((inst, i) => {
-                  const color = store.groupColor(inst.item.course_id);
+                {cell.items.slice(0, 3).map((occ, i) => {
+                  const color = store.groupColor(occ.courseId);
                   return (
                     <div
                       key={i}
-                      className={`ev ${inst.completed ? 'done' : ''}`}
+                      className="ev"
                       style={{ '--c': color, '--cc': softColor(color) } as CSSProperties}
-                      onClick={() => onEdit(inst.item)}
-                      title={inst.item.title}
+                      onClick={() => editSource(store, occ, onEdit)}
+                      title={occ.title}
                     >
-                      {inst.hasTime ? `${formatTime(inst.date)} ` : ''}
-                      {inst.item.title}
+                      {`${formatTime(new Date(occ.start))} `}
+                      {occ.title}
                     </div>
                   );
                 })}
@@ -186,39 +204,39 @@ function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEd
 
 // ---------------- Week / Day (time grid) ----------------
 interface LaidOut {
-  inst: TaskInstance;
+  occ: ItemOccurrence;
+  start: Date;
+  end: Date;
   top: number;
   height: number;
   leftPct: number;
   widthPct: number;
 }
 
-// Default visual span for items without a real duration (tasks, or events
-// missing an end). Events use their actual start→end span instead.
-const DEFAULT_BLOCK = 50 * 60_000;
 const MIN_BLOCK = 20 * 60_000;
 
-/** Duration of an occurrence in ms — real span for events, default otherwise. */
-function instDuration(inst: TaskInstance): number {
-  if (inst.endDate) {
-    return Math.max(MIN_BLOCK, inst.endDate.getTime() - inst.date.getTime());
-  }
-  return DEFAULT_BLOCK;
+/** Duration of an occurrence in ms (clamped to a readable minimum). */
+function occDuration(start: Date, end: Date): number {
+  return Math.max(MIN_BLOCK, end.getTime() - start.getTime());
 }
 
-function layoutDay(items: TaskInstance[]): LaidOut[] {
-  const timed = items.filter((i) => i.hasTime).sort((a, b) => a.date.getTime() - b.date.getTime());
+function layoutDay(occs: ItemOccurrence[]): LaidOut[] {
+  const timed = occs
+    .map((o) => ({ o, start: new Date(o.start), end: new Date(o.end) }))
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
   const out: LaidOut[] = [];
-  let cluster: TaskInstance[] = [];
+  let cluster: { o: ItemOccurrence; start: Date; end: Date }[] = [];
   let clusterEnd = 0;
 
   const flush = () => {
-    cluster.forEach((inst, i) => {
-      const mins = inst.date.getHours() * 60 + inst.date.getMinutes();
+    cluster.forEach((entry, i) => {
+      const mins = entry.start.getHours() * 60 + entry.start.getMinutes();
       out.push({
-        inst,
+        occ: entry.o,
+        start: entry.start,
+        end: entry.end,
         top: (mins / 60) * HOUR_H,
-        height: (instDuration(inst) / 60_000 / 60) * HOUR_H,
+        height: (occDuration(entry.start, entry.end) / 60_000 / 60) * HOUR_H,
         leftPct: (i * 100) / cluster.length,
         widthPct: 100 / cluster.length,
       });
@@ -226,15 +244,15 @@ function layoutDay(items: TaskInstance[]): LaidOut[] {
     cluster = [];
   };
 
-  for (const inst of timed) {
-    const start = inst.date.getTime();
+  for (const entry of timed) {
+    const start = entry.start.getTime();
     if (cluster.length && start < clusterEnd) {
-      cluster.push(inst);
-      clusterEnd = Math.max(clusterEnd, start + instDuration(inst));
+      cluster.push(entry);
+      clusterEnd = Math.max(clusterEnd, start + occDuration(entry.start, entry.end));
     } else {
       flush();
-      cluster = [inst];
-      clusterEnd = start + instDuration(inst);
+      cluster = [entry];
+      clusterEnd = start + occDuration(entry.start, entry.end);
     }
   }
   flush();
@@ -250,32 +268,25 @@ function TimeGrid({
   store: Store;
   anchor: Date;
   view: 'day' | 'week';
-  onEdit: (t: PlannerItem) => void;
+  onEdit: (t: Item) => void;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const cols = useMemo(() => {
     const start = view === 'week' ? startOfWeek(anchor) : startOfDay(anchor);
     const n = view === 'week' ? 7 : 1;
-    const all = calendarItems(store);
     return Array.from({ length: n }, (_, i) => {
       const date = addDays(start, i);
-      const items = expandInstances(all, date, addDays(date, 1));
-      return {
-        date,
-        allDay: items.filter((it) => !it.hasTime),
-        timed: layoutDay(items),
-      };
+      const key = dayKey(date);
+      const dayOccs = store.occurrences.filter((o) => dayKey(new Date(o.start)) === key);
+      return { date, timed: layoutDay(dayOccs) };
     });
-  }, [store.tasks, store.events, anchor, view]);
-
-  const hasAllDay = cols.some((c) => c.allDay.length > 0);
-  const allDayH = hasAllDay ? ALLDAY_H : 0;
+  }, [store.occurrences, anchor, view]);
 
   // Scroll the work-day into view on mount / when the period changes.
   useEffect(() => {
-    if (bodyRef.current) bodyRef.current.scrollTop = HEAD_H + allDayH + 7 * HOUR_H - 40;
-  }, [anchor, view, allDayH]);
+    if (bodyRef.current) bodyRef.current.scrollTop = HEAD_H + 7 * HOUR_H - 40;
+  }, [anchor, view]);
 
   const labelFor = (h: number) => {
     const ampm = h >= 12 ? 'PM' : 'AM';
@@ -287,7 +298,7 @@ function TimeGrid({
     <div className="cal-body" ref={bodyRef} style={{ overflow: 'auto', height: '100%' }}>
       <div className="tg" style={{ gridTemplateColumns: '60px 1fr' }}>
         <div className="tg-times">
-          <div style={{ height: HEAD_H + allDayH }} />
+          <div style={{ height: HEAD_H }} />
           {HOURS.map((h) => (
             <div className="th" style={{ height: HOUR_H }} key={h}>
               {h === 0 ? '' : labelFor(h)}
@@ -305,37 +316,16 @@ function TimeGrid({
                 <div className="n">{col.date.getDate()}</div>
               </div>
 
-              {hasAllDay && (
-                <div className="tg-allday" style={{ height: allDayH, overflow: 'auto' }}>
-                  {col.allDay.map((inst, i) => {
-                    const color = store.groupColor(inst.item.course_id);
-                    return (
-                      <div
-                        key={i}
-                        className={`ev ${inst.completed ? 'done' : ''}`}
-                        style={{ '--c': color, '--cc': softColor(color) } as CSSProperties}
-                        onClick={() => onEdit(inst.item)}
-                        title={inst.item.title}
-                      >
-                        {inst.item.title}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
               <div style={{ position: 'relative' }}>
                 {HOURS.map((h) => (
                   <div className="hr" style={{ height: HOUR_H }} key={h} />
                 ))}
                 {col.timed.map((lo, i) => {
-                  const t = lo.inst.item;
-                  const color = store.groupColor(t.course_id);
-                  const endLabel = lo.inst.endDate ? ` – ${formatTime(lo.inst.endDate)}` : '';
+                  const color = store.groupColor(lo.occ.courseId);
                   return (
                     <div
                       key={i}
-                      className={`tg-ev ${lo.inst.completed ? 'done' : ''}`}
+                      className="tg-ev"
                       style={
                         {
                           top: lo.top,
@@ -346,14 +336,13 @@ function TimeGrid({
                           '--cc': softColor(color),
                         } as CSSProperties
                       }
-                      onClick={() => onEdit(t)}
-                      title={t.title}
+                      onClick={() => editSource(store, lo.occ, onEdit)}
+                      title={lo.occ.title}
                     >
-                      <div className="et">{t.title}</div>
+                      <div className="et">{lo.occ.title}</div>
                       <div className="es">
-                        {formatTime(lo.inst.date)}
-                        {endLabel}
-                        {isRecurringItem(t) ? ' · 🔁' : ''}
+                        {formatTime(lo.start)} – {formatTime(lo.end)}
+                        {lo.occ.recurrence === 'RECURRING' ? ' · 🔁' : ''}
                       </div>
                     </div>
                   );

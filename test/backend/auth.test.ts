@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { initializeDB, closeDB } from '../../backend/dbManager';
-import { register, login, validateSession, deleteSession } from '../../backend/auth';
+import { initializeDB, closeDB } from '../../backend/db/connection';
+import { register, login, validateSession, invalidateSession } from '../../backend/auth';
 import AppError from '../../backend/error/appError';
 
 describe('backend/auth', () => {
@@ -43,7 +43,7 @@ describe('backend/auth', () => {
     const sid = login('sessionuser', 'Password1');
     expect(validateSession(sid)).toBe(uid);
 
-    deleteSession(sid);
+    invalidateSession(sid);
     expect(() => validateSession(sid)).toThrow(AppError);
   });
 });

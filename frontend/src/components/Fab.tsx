@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-export type CreateKind = 'task' | 'recurring' | 'event' | 'recurring-event' | 'group';
+export type CreateKind = 'item' | 'group';
 
 interface Props {
   onCreate: (kind: CreateKind) => void;
@@ -33,17 +33,17 @@ export default function Fab({ onCreate }: Props) {
   return (
     <div className="fab-wrap" ref={ref}>
       <div className={`fab-menu ${open ? 'open' : ''}`}>
-        <button className="fab-item" onClick={() => pick('task')}>
+        <button className="fab-item" onClick={() => pick('item')}>
           <span className="fi" style={{ background: '#6d8bff22', color: '#aebdff' }}>
             ✓
           </span>
-          New Task
+          New Item
         </button>
-        <button className="fab-item" onClick={() => pick('event')}>
+        <button className="fab-item" onClick={() => pick('group')}>
           <span className="fi" style={{ background: '#41d0d822', color: '#41d0d8' }}>
-            📅
+            ▣
           </span>
-          New Event
+          New Group
         </button>
       </div>
       <button

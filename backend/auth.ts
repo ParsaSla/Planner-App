@@ -7,10 +7,10 @@ import {
     getUserByUsername,
     createSession,
     getSession,
-    deleteSession as removeSession,
+    deleteSession,
     updateUserLastLogin,
-} from './dbManager';
-import { UserRow } from './types/DBTypes';
+} from './db/users';
+import { UserRow } from './db/users';
 
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -90,10 +90,10 @@ export function validateSession(SID: string): string {
         return session.uid;
     }
 
-    removeSession(SID);
+    invalidateSession(SID);
     throw new AppError('Invalid session', ERRORS.INVALID_CREDENTIALS);
 }
 
-export function deleteSession(SID: string): void {
-    removeSession(SID);
+export function invalidateSession(SID: string): void {
+    deleteSession(SID);
 }

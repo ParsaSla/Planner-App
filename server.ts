@@ -1,10 +1,10 @@
 import express, { NextFunction, Request, Response } from 'express';
 import path from 'path';
-import {deleteSession, validateSession, login, register} from './backend/auth';
-import { initializeDB } from './backend/dbManager';
+import {invalidateSession, validateSession, login, register} from './backend/auth';
+import { initializeDB } from './backend/db/connection';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { getTasks, deleteTask, updateTaskCompletion, createTask, updateTask, toggleRecurringInstance, createCourse, getCourses, deleteCourse, createEvent, getEvents, deleteEvent, updateEvent, updateEventCompletion, toggleRecurringEventInstance, getSettings, saveSettings, previewICalImport, commitICalImport } from './backend/API';
+import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, createCourse, getCourses, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -66,7 +66,7 @@ app.post("/login/", (req, res) => {
 app.get("/logout/", (req, res) => {
   const sessionID = retrieveSessionID(req.headers.cookie);
   res.setHeader('Set-Cookie', `SID=; HttpOnly; Path=/; Max-Age=0`); // Clear the cookie
-  deleteSession(sessionID);
+  invalidateSession(sessionID);
   res.status(200).json({ success: true, redirect: '/' });
 });
 
@@ -94,38 +94,50 @@ app.get("/dashboard/", (req, res) => {
 });
 
 /////////////////////////////
-// DASHBOARD API ENDPOINTS //
+// ITEM API ENDPOINTS       //
 /////////////////////////////
 
-// create task, expects { type, title, description, date, days, time, courseId? }
-app.post("/api/tasks", (req, res) => {
-  const { type, title, description, date, days, time, courseId } = req.body;
+// create item, expects
+// { courseId?, recurrence, title, description?, location?, date?, start_date?, end_date?,
+//   frequency?, daysOfWeek?, start_time?, end_time? }
+app.post("/api/items", (req, res) => {
+  const { courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time } = req.body;
   const UID = authenticate(req);
-  createTask(type, title, UID, date, days, time, description, courseId);
+  createItem(UID, courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time);
   res.status(201).json({ success: true });
 });
 
-// get tasks
-app.get("/api/tasks", (req, res) => {
+// get raw source items — used by list/smart views and to prefill the edit form.
+app.get("/api/items", (req, res) => {
   const UID = authenticate(req);
-  const tasks = getTasks(UID);
-  res.status(200).json({ success: true, tasks });
+  const items = getItems(UID);
+  res.status(200).json({ success: true, items });
 });
 
-// delete task
-app.delete("/api/tasks/:id", (req, res) => {
-  const taskId = req.params.id;
+// get concrete occurrences over a window, expects ?from=<ISO>&to=<ISO>.
+// One-time items in the window plus expanded recurring occurrences, merged and sorted.
+app.get("/api/items/occurrences", (req, res) => {
   const UID = authenticate(req);
-  deleteTask(UID, taskId);
+  const { from, to } = req.query;
+  if (typeof from !== 'string' || typeof to !== 'string') {
+    throw new AppError('`from` and `to` query parameters are required', ERRORS.INVALID_ITEM_DATA);
+  }
+  const items = getItemOccurrences(UID, from, to);
+  res.status(200).json({ success: true, items });
+});
+
+// update item (both one-time and recurring), same body shape as create
+app.put("/api/items/:id", (req, res) => {
+  const { courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time } = req.body;
+  const UID = authenticate(req);
+  updateItem(Number(req.params.id), UID, courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time);
   res.status(200).json({ success: true });
 });
 
-// update task (both one-time and recurring)
-app.put("/api/tasks/:id", (req, res) => {
-  const taskId = req.params.id;
-  const { type, title, description, date, days, time, courseId } = req.body;
+// delete item
+app.delete("/api/items/:id", (req, res) => {
   const UID = authenticate(req);
-  updateTask(UID, taskId, type, title, description, date, days, time, courseId);
+  deleteItem(UID, Number(req.params.id));
   res.status(200).json({ success: true });
 });
 
@@ -146,93 +158,8 @@ app.post("/api/courses", (req, res) => {
 
 // delete course
 app.delete("/api/courses/:id", (req, res) => {
-  const courseId = req.params.id;
   const UID = authenticate(req);
-  deleteCourse(UID, courseId);
-  res.status(200).json({ success: true });
-});
-
-// toggle recurring instance completion
-app.patch("/api/tasks/:id/instance", (req, res) => {
-  const taskId = req.params.id;
-  const { instanceDate, completed } = req.body;
-  const UID = authenticate(req);
-  if (typeof completed !== 'boolean') {
-    throw new AppError('Invalid completed value', ERRORS.INVALID_TASK_DATA);
-  }
-  toggleRecurringInstance(UID, taskId, instanceDate, completed);
-  res.status(200).json({ success: true });
-});
-
-// update one-time task completion
-app.patch("/api/tasks/:id", (req, res) => {
-  const taskId = req.params.id;
-  const { completed } = req.body;
-  const UID = authenticate(req);
-  if (typeof completed !== 'boolean') {
-    throw new AppError('Invalid completed value', ERRORS.INVALID_TASK_DATA);
-  }
-  updateTaskCompletion(UID, taskId, completed);
-  res.status(200).json({ success: true });
-});
-
-/////////////////////////////
-// EVENT API ENDPOINTS      //
-/////////////////////////////
-
-// create event, expects { type, title, description, start, end, days, startTime, endTime, courseId? }
-app.post("/api/events", (req, res) => {
-  const { type, title, description, start, end, days, startTime, endTime, courseId } = req.body;
-  const UID = authenticate(req);
-  createEvent(type, title, UID, start, end, days, startTime, endTime, description, courseId);
-  res.status(201).json({ success: true });
-});
-
-// get events
-app.get("/api/events", (req, res) => {
-  const UID = authenticate(req);
-  const events = getEvents(UID);
-  res.status(200).json({ success: true, events });
-});
-
-// delete event
-app.delete("/api/events/:id", (req, res) => {
-  const eventId = req.params.id;
-  const UID = authenticate(req);
-  deleteEvent(UID, eventId);
-  res.status(200).json({ success: true });
-});
-
-// update event (both one-time and recurring)
-app.put("/api/events/:id", (req, res) => {
-  const eventId = req.params.id;
-  const { type, title, description, start, end, days, startTime, endTime, courseId } = req.body;
-  const UID = authenticate(req);
-  updateEvent(UID, eventId, type, title, description, start, end, days, startTime, endTime, courseId);
-  res.status(200).json({ success: true });
-});
-
-// toggle recurring event instance completion
-app.patch("/api/events/:id/instance", (req, res) => {
-  const eventId = req.params.id;
-  const { instanceDate, completed } = req.body;
-  const UID = authenticate(req);
-  if (typeof completed !== 'boolean') {
-    throw new AppError('Invalid completed value', ERRORS.INVALID_EVENT_DATA);
-  }
-  toggleRecurringEventInstance(UID, eventId, instanceDate, completed);
-  res.status(200).json({ success: true });
-});
-
-// update one-time event completion
-app.patch("/api/events/:id", (req, res) => {
-  const eventId = req.params.id;
-  const { completed } = req.body;
-  const UID = authenticate(req);
-  if (typeof completed !== 'boolean') {
-    throw new AppError('Invalid completed value', ERRORS.INVALID_EVENT_DATA);
-  }
-  updateEventCompletion(UID, eventId, completed);
+  deleteCourse(UID, Number(req.params.id));
   res.status(200).json({ success: true });
 });
 

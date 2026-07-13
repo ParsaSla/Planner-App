@@ -1,5 +1,5 @@
 // Shared types — mirror the backend JSON contract exactly.
-// See backend/types/TaskTypes.ts and backend/API.ts.
+// See backend/api/items.ts and server.ts (the unified /api/items API).
 
 export const DAYS = [
   'MONDAY',
@@ -12,7 +12,9 @@ export const DAYS = [
 ] as const;
 export type Day = (typeof DAYS)[number];
 
-export type TaskType = 'ONE_TIME' | 'RECURRING';
+// The one remaining axis: a one-time item is a datetime span; a recurring item
+// repeats on selected weekdays. There is no task/event split anymore.
+export type Recurrence = 'ONE_TIME' | 'RECURRING';
 
 export interface TimeOfDay {
   hour: number; // 0-23
@@ -26,115 +28,59 @@ export interface Group {
   color?: string;
 }
 
-interface TaskBase {
+/**
+ * A raw source item as returned by `GET /api/items` — the underlying record the
+ * edit form and list/smart views read. Recurring items expose their selected
+ * `daysOfWeek` (derived from the stored RRULE) plus the series' start/end dates
+ * and times; one-time items carry a concrete `start_date`/`end_date` span.
+ */
+export interface Item {
   id: string;
+  courseId?: string;
   title: string;
   description?: string;
-  type: TaskType;
-  course_id?: string;
+  location?: string;
+  recurrence: Recurrence;
+  start_date: string; // ISO-8601
+  end_date?: string; // ISO-8601
+  daysOfWeek?: Day[]; // RECURRING only
+  start_time?: TimeOfDay; // RECURRING only
+  end_time?: TimeOfDay; // RECURRING only
 }
 
-export interface OneTimeTask extends TaskBase {
-  type: 'ONE_TIME';
-  date: string; // ISO-8601 string
-  completed: boolean;
-}
-
-export interface RecurringTask extends TaskBase {
-  type: 'RECURRING';
-  days: Day[];
-  time: TimeOfDay;
-  completedDates: string[]; // YYYY-MM-DD list of completed occurrences
-}
-
-export type Task = OneTimeTask | RecurringTask;
-
-export function isRecurring(t: Task): t is RecurringTask {
-  return t.type === 'RECURRING';
-}
-export function isOneTime(t: Task): t is OneTimeTask {
-  return t.type === 'ONE_TIME';
-}
-
-// Events mirror tasks but are time-blocked: they occupy a start→end span rather
-// than a single point. See backend/types/TaskTypes.ts (OneTimeEvent / RecurringEvent).
-export interface OneTimeEvent extends TaskBase {
-  type: 'ONE_TIME';
+/**
+ * A concrete dated occurrence as returned by `GET /api/items/occurrences` — the
+ * server expands recurring items into one occurrence per matching day. `id` is
+ * the source item's id (shared across a series), so edits route back to it.
+ */
+export interface ItemOccurrence {
+  id: string;
+  courseId?: string;
+  title: string;
+  description?: string;
+  location?: string;
+  recurrence: Recurrence;
   start: string; // ISO-8601 datetime
   end: string; // ISO-8601 datetime
-  completed: boolean;
 }
 
-export interface RecurringEvent extends TaskBase {
-  type: 'RECURRING';
-  days: Day[];
-  startTime: TimeOfDay;
-  endTime: TimeOfDay;
-  completedDates: string[]; // YYYY-MM-DD list of completed occurrences
+/** The one remaining discriminator on a raw item. */
+export function isRecurringItem(i: Item): boolean {
+  return i.recurrence === 'RECURRING';
 }
 
-export type PlannerEvent = OneTimeEvent | RecurringEvent;
-
-export function isOneTimeEvent(e: PlannerEvent): e is OneTimeEvent {
-  return e.type === 'ONE_TIME';
-}
-export function isRecurringEvent(e: PlannerEvent): e is RecurringEvent {
-  return e.type === 'RECURRING';
-}
-
-// A task or an event — both share the TaskBase shape and a recurrence type.
-export type PlannerItem = Task | PlannerEvent;
-
-/** Structural guard: events carry start/startTime, tasks carry date/time. */
-export function isEventItem(x: PlannerItem): x is PlannerEvent {
-  return 'start' in x || 'startTime' in x;
-}
-/** True for recurring tasks or recurring events. */
-export function isRecurringItem(x: PlannerItem): x is RecurringTask | RecurringEvent {
-  return x.type === 'RECURRING';
-}
-
-// A concrete, dated occurrence of a task or event on the timeline (one-time
-// items produce a single instance; recurring items expand into many).
-export interface TaskInstance {
-  item: PlannerItem;
-  /** 'task' or 'event' — drives which completion/edit handlers apply. */
-  kind: 'task' | 'event';
-  /** Local Date for this occurrence's start (with time applied). */
-  date: Date;
-  /** Local Date for the occurrence's end — events only. */
-  endDate?: Date;
-  /** YYYY-MM-DD key in local time. */
-  dateKey: string;
-  completed: boolean;
-  /** Present only for recurring occurrences — used to toggle completion. */
-  instanceDate?: string;
-  /** true when the occurrence has a concrete time-of-day. */
-  hasTime: boolean;
-}
-
-// Payload for creating/updating a task.
-export interface TaskInput {
-  type: TaskType;
+// Payload for creating/updating an item (POST/PUT body).
+export interface ItemInput {
+  courseId?: string;
+  recurrence: Recurrence;
   title: string;
   description?: string;
-  date?: string; // for ONE_TIME (YYYY-MM-DD)
-  days?: Day[]; // for RECURRING
-  time?: TimeOfDay; // for RECURRING
-  courseId?: string;
-}
-
-// Payload for creating/updating an event.
-export interface EventInput {
-  type: TaskType;
-  title: string;
-  description?: string;
-  start?: string; // for ONE_TIME — datetime ("YYYY-MM-DDTHH:mm")
-  end?: string; // for ONE_TIME — datetime ("YYYY-MM-DDTHH:mm")
-  days?: Day[]; // for RECURRING
-  startTime?: TimeOfDay; // for RECURRING
-  endTime?: TimeOfDay; // for RECURRING
-  courseId?: string;
+  location?: string;
+  start_date?: string; // ONE_TIME span start / RECURRING series anchor
+  end_date?: string; // ONE_TIME span end / RECURRING series UNTIL
+  daysOfWeek?: Day[]; // RECURRING
+  start_time?: TimeOfDay; // RECURRING
+  end_time?: TimeOfDay; // RECURRING
 }
 
 export interface GroupInput {

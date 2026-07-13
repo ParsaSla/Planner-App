@@ -1,18 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Store } from '../useStore';
 import type { Selection } from '../nav';
-import type { Task, PlannerItem, PlannerEvent } from '../types';
-import { isOneTime, isRecurring, isRecurringItem, isOneTimeEvent, isEventItem } from '../types';
+import type { Item } from '../types';
 import {
   addDays,
   dayKey,
-  expandInstances,
   formatDaysList,
   formatTime,
-  formatTimeHM,
   longDate,
-  parseTaskDate,
   relativeDay,
+  seriesInstant,
   startOfDay,
 } from '../util';
 import TaskRow from './TaskRow';
@@ -21,100 +18,79 @@ interface Props {
   store: Store;
   selection: Selection;
   query: string;
-  onEdit: (item: PlannerItem) => void;
+  onEdit: (item: Item) => void;
 }
 
 type AllMode = 'grouped' | 'list' | 'date';
 
+const isRecurring = (i: Item) => i.recurrence === 'RECURRING';
+const isOneTime = (i: Item) => i.recurrence === 'ONE_TIME';
+
 export default function TaskView({ store, selection, query, onEdit }: Props) {
   const [allMode, setAllMode] = useState<AllMode>('grouped');
 
+  const isToday = selection.kind === 'view' && selection.view === 'today';
+
+  // The Today agenda reads server-expanded occurrences; load its window whenever
+  // the Today view becomes active. (The calendar loads its own range separately.)
+  useEffect(() => {
+    if (!isToday) return;
+    const today = startOfDay(new Date());
+    store.loadOccurrences(today, addDays(today, 1));
+  }, [isToday, store.loadOccurrences]);
+
   const q = query.trim().toLowerCase();
-  const matches = (t: { title: string; course_id?: string }) =>
+  const matches = (t: { title: string; courseId?: string }) =>
     !q ||
     t.title.toLowerCase().includes(q) ||
-    (store.groupById(t.course_id)?.name.toLowerCase().includes(q) ?? false);
+    (store.groupById(t.courseId)?.name.toLowerCase().includes(q) ?? false);
 
-  const tasks = store.tasks.filter(matches);
-  const events = store.events.filter(matches);
+  const items = store.items.filter(matches);
 
-  // Shared row builder for task-centric rows.
-  const taskRow = (t: Task, opts: { toggle?: boolean } = {}) => {
-    const color = store.groupColor(t.course_id);
-    const groupName = store.groupById(t.course_id)?.name;
+  // Shared row builder for raw items.
+  const itemRow = (t: Item) => {
+    const color = store.groupColor(t.courseId);
+    const groupName = store.groupById(t.courseId)?.name;
     if (isRecurring(t)) {
+      const when =
+        t.start_time && t.end_time
+          ? `${formatTime(seriesInstant(t.start_date, t.start_time))}–${formatTime(
+              seriesInstant(t.start_date, t.end_time)
+            )}`
+          : undefined;
       return (
         <TaskRow
           key={t.id}
           title={t.title}
           color={color}
           groupName={groupName}
-          recurringDays={formatDaysList(t.days)}
-          when={formatTimeHM(t.time.hour, t.time.minute)}
-          done={false}
+          recurringDays={formatDaysList(t.daysOfWeek ?? [])}
+          when={when}
+          location={t.location}
           onEdit={() => onEdit(t)}
           onDelete={() => del(t)}
         />
       );
     }
+    const start = new Date(t.start_date);
+    const end = t.end_date ? new Date(t.end_date) : undefined;
     return (
       <TaskRow
         key={t.id}
         title={t.title}
         color={color}
         groupName={groupName}
-        when={relativeDay(parseTaskDate(t.date))}
-        done={t.completed}
-        onToggle={opts.toggle === false ? undefined : () => store.toggleOneTime(t.id, !t.completed)}
+        when={`${relativeDay(start)} · ${formatTime(start)}${end ? `–${formatTime(end)}` : ''}`}
+        location={t.location}
         onEdit={() => onEdit(t)}
         onDelete={() => del(t)}
       />
     );
   };
 
-  const del = (item: PlannerItem) => {
+  const del = (item: Item) => {
     if (!confirm(`Delete "${item.title}"?`)) return;
-    if (isEventItem(item)) store.deleteEvent(item.id);
-    else store.deleteTask(item.id);
-  };
-
-  // Row builder for events (one-time or recurring).
-  const eventRow = (e: PlannerEvent) => {
-    const color = store.groupColor(e.course_id);
-    const groupName = store.groupById(e.course_id)?.name;
-    if (isOneTimeEvent(e)) {
-      const start = new Date(e.start);
-      const end = new Date(e.end);
-      return (
-        <TaskRow
-          key={e.id}
-          title={e.title}
-          color={color}
-          groupName={groupName}
-          when={`${relativeDay(start)} · ${formatTime(start)}–${formatTime(end)}`}
-          done={e.completed}
-          onToggle={() => store.toggleEventCompletion(e.id, !e.completed)}
-          onEdit={() => onEdit(e)}
-          onDelete={() => del(e)}
-        />
-      );
-    }
-    return (
-      <TaskRow
-        key={e.id}
-        title={e.title}
-        color={color}
-        groupName={groupName}
-        recurringDays={formatDaysList(e.days)}
-        when={`${formatTimeHM(e.startTime.hour, e.startTime.minute)}–${formatTimeHM(
-          e.endTime.hour,
-          e.endTime.minute
-        )}`}
-        done={false}
-        onEdit={() => onEdit(e)}
-        onDelete={() => del(e)}
-      />
-    );
+    store.deleteItem(item.id);
   };
 
   const empty = (msg: string) => (
@@ -126,51 +102,37 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
   );
 
   // ---------------- TODAY ----------------
-  if (selection.kind === 'view' && selection.view === 'today') {
-    const today = startOfDay(new Date());
-    const instances = expandInstances([...tasks, ...events], today, addDays(today, 1));
-    const open = instances.filter((i) => !i.completed).length;
+  if (isToday) {
+    const todayKey = dayKey(new Date());
+    const occ = store.occurrences
+      .filter((o) => dayKey(new Date(o.start)) === todayKey)
+      .filter((o) => matches(o));
     return (
       <main className="main">
         <div className="page-head">
           <h1>Today</h1>
           <span className="sub">
-            {longDate(new Date())} · {open} open
+            {longDate(new Date())} · {occ.length} scheduled
           </span>
         </div>
-        {instances.length === 0
+        {occ.length === 0
           ? empty('Nothing scheduled for today.')
-          : instances.map((inst, i) => {
-              const t = inst.item;
-              const color = store.groupColor(t.course_id);
-              const when = inst.hasTime
-                ? inst.endDate
-                  ? `${formatTime(inst.date)}–${formatTime(inst.endDate)}`
-                  : formatTime(inst.date)
-                : undefined;
-              const toggle = () => {
-                if (inst.kind === 'event') {
-                  inst.instanceDate
-                    ? store.toggleEventInstance(t.id, inst.instanceDate, !inst.completed)
-                    : store.toggleEventCompletion(t.id, !inst.completed);
-                } else {
-                  inst.instanceDate
-                    ? store.toggleInstance(t.id, inst.instanceDate, !inst.completed)
-                    : store.toggleOneTime(t.id, !inst.completed);
-                }
-              };
+          : occ.map((o, i) => {
+              const start = new Date(o.start);
+              const end = new Date(o.end);
+              const when = `${formatTime(start)}${isNaN(end.getTime()) ? '' : `–${formatTime(end)}`}`;
               return (
                 <TaskRow
-                  key={`${t.id}-${i}`}
-                  title={t.title}
-                  color={color}
-                  groupName={store.groupById(t.course_id)?.name}
-                  recurringDays={isRecurringItem(t) ? formatDaysList(t.days) : undefined}
+                  key={`${o.id}-${i}`}
+                  title={o.title}
+                  color={store.groupColor(o.courseId)}
+                  groupName={store.groupById(o.courseId)?.name}
                   when={when}
-                  done={inst.completed}
-                  onToggle={toggle}
-                  onEdit={() => onEdit(t)}
-                  onDelete={() => del(t)}
+                  location={o.location}
+                  onEdit={() => {
+                    const src = store.items.find((it) => it.id === o.id);
+                    if (src) onEdit(src);
+                  }}
                 />
               );
             })}
@@ -180,49 +142,15 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
 
   // ---------------- RECURRING ----------------
   if (selection.kind === 'view' && selection.view === 'recurring') {
-    const recurring = tasks.filter(isRecurring);
+    const recurring = items.filter(isRecurring);
     return (
       <main className="main">
         <div className="page-head">
           <h1>Recurring</h1>
-          <span className="sub">{recurring.length} repeating tasks</span>
+          <span className="sub">{recurring.length} repeating items</span>
         </div>
         <div style={{ height: 18 }} />
-        {recurring.length === 0 ? empty('No recurring tasks yet.') : recurring.map((t) => taskRow(t))}
-      </main>
-    );
-  }
-
-  // ---------------- EVENTS ----------------
-  if (selection.kind === 'view' && selection.view === 'events') {
-    const oneTime = events
-      .filter(isOneTimeEvent)
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-    const recurring = events.filter((e) => !isOneTimeEvent(e));
-    return (
-      <main className="main">
-        <div className="page-head">
-          <h1>Events</h1>
-          <span className="sub">{events.length} scheduled</span>
-        </div>
-        {events.length === 0
-          ? empty('No events yet.')
-          : [...oneTime, ...recurring].map((e) => eventRow(e))}
-      </main>
-    );
-  }
-
-  // ---------------- COMPLETED ----------------
-  if (selection.kind === 'view' && selection.view === 'completed') {
-    const done = tasks.filter((t) => isOneTime(t) && t.completed);
-    return (
-      <main className="main">
-        <div className="page-head">
-          <h1>Completed</h1>
-          <span className="sub">{done.length} done</span>
-        </div>
-        <div style={{ height: 18 }} />
-        {done.length === 0 ? empty('No completed tasks yet.') : done.map((t) => taskRow(t))}
+        {recurring.length === 0 ? empty('No recurring items yet.') : recurring.map((t) => itemRow(t))}
       </main>
     );
   }
@@ -230,11 +158,10 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
   // ---------------- GROUP ----------------
   if (selection.kind === 'group') {
     const group = store.groupById(selection.id);
-    const inGroup = tasks.filter((t) => t.course_id === selection.id);
+    const inGroup = items.filter((t) => t.courseId === selection.id);
     const oneTime = inGroup.filter(isOneTime).sort(byDate);
     const recurring = inGroup.filter(isRecurring);
-    const groupEvents = events.filter((e) => e.course_id === selection.id);
-    const total = inGroup.length + groupEvents.length;
+    const total = inGroup.length;
     return (
       <main className="main">
         <div className="page-head">
@@ -255,26 +182,18 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
           </span>
         </div>
         <div style={{ height: 18 }} />
-        {total === 0 ? (
-          empty('Nothing in this group yet.')
-        ) : (
-          <>
-            {[...oneTime, ...recurring].map((t) => taskRow(t))}
-            {groupEvents.map((e) => eventRow(e))}
-          </>
-        )}
+        {total === 0 ? empty('Nothing in this group yet.') : [...oneTime, ...recurring].map((t) => itemRow(t))}
       </main>
     );
   }
 
   // ---------------- ALL ----------------
-  const open = tasks.filter((t) => !(isOneTime(t) && t.completed));
   return (
     <main className="main">
       <div className="page-head">
-        <h1>All Tasks</h1>
+        <h1>All Items</h1>
         <span className="sub">
-          {longDate(new Date())} · {open.length} open
+          {longDate(new Date())} · {items.length} items
         </span>
       </div>
       <div className="seg">
@@ -285,38 +204,39 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
         ))}
       </div>
 
-      {open.length === 0 && empty('No open tasks. Nice work!')}
+      {items.length === 0 && empty('No items yet.')}
 
-      {allMode === 'grouped' && <Grouped store={store} tasks={open} taskRow={taskRow} />}
-      {allMode === 'list' && [...open].sort(byDate).map((t) => taskRow(t))}
-      {allMode === 'date' && <ByDate tasks={open} taskRow={taskRow} />}
+      {allMode === 'grouped' && <Grouped store={store} items={items} itemRow={itemRow} />}
+      {allMode === 'list' && [...items].sort(byDate).map((t) => itemRow(t))}
+      {allMode === 'date' && <ByDate items={items} itemRow={itemRow} />}
     </main>
   );
 }
 
-// One-time first by date, recurring last.
-function byDate(a: Task, b: Task) {
-  const av = isOneTime(a) ? parseTaskDate(a.date).getTime() : Number.MAX_SAFE_INTEGER;
-  const bv = isOneTime(b) ? parseTaskDate(b.date).getTime() : Number.MAX_SAFE_INTEGER;
+// One-time first by start date, recurring last.
+function byDate(a: Item, b: Item) {
+  const av = a.recurrence === 'ONE_TIME' ? new Date(a.start_date).getTime() : Number.MAX_SAFE_INTEGER;
+  const bv = b.recurrence === 'ONE_TIME' ? new Date(b.start_date).getTime() : Number.MAX_SAFE_INTEGER;
   return av - bv;
 }
 
 function Grouped({
   store,
-  tasks,
-  taskRow,
+  items,
+  itemRow,
 }: {
   store: Store;
-  tasks: Task[];
-  taskRow: (t: Task) => JSX.Element;
+  items: Item[];
+  itemRow: (t: Item) => JSX.Element;
 }) {
   // Order: defined groups (in sidebar order), then "No group".
-  const blocks: { id?: string; name: string; code?: string; color: string; items: Task[] }[] = [];
+  const blocks: { id?: string; name: string; code?: string; color: string; items: Item[] }[] = [];
   for (const g of store.groups) {
-    const items = tasks.filter((t) => t.course_id === g.id).sort(byDate);
-    if (items.length) blocks.push({ id: g.id, name: g.name, code: g.code, color: store.groupColor(g.id), items });
+    const inGroup = items.filter((t) => t.courseId === g.id).sort(byDate);
+    if (inGroup.length)
+      blocks.push({ id: g.id, name: g.name, code: g.code, color: store.groupColor(g.id), items: inGroup });
   }
-  const ungrouped = tasks.filter((t) => !t.course_id || !store.groupById(t.course_id)).sort(byDate);
+  const ungrouped = items.filter((t) => !t.courseId || !store.groupById(t.courseId)).sort(byDate);
   if (ungrouped.length)
     blocks.push({ name: 'No group', color: store.groupColor(undefined), items: ungrouped });
 
@@ -331,30 +251,30 @@ function Grouped({
             <div className="bar" />
             <span className="cnt">{b.items.length}</span>
           </div>
-          {b.items.map((t) => taskRow(t))}
+          {b.items.map((t) => itemRow(t))}
         </div>
       ))}
     </>
   );
 }
 
-function ByDate({ tasks, taskRow }: { tasks: Task[]; taskRow: (t: Task) => JSX.Element }) {
+function ByDate({ items, itemRow }: { items: Item[]; itemRow: (t: Item) => JSX.Element }) {
   const todayK = dayKey(new Date());
   const weekEnd = addDays(startOfDay(new Date()), 7).getTime();
 
-  const buckets: { name: string; items: Task[] }[] = [
+  const buckets: { name: string; items: Item[] }[] = [
     { name: 'Overdue', items: [] },
     { name: 'Today', items: [] },
     { name: 'This week', items: [] },
     { name: 'Later', items: [] },
     { name: 'Recurring', items: [] },
   ];
-  for (const t of tasks) {
+  for (const t of items) {
     if (isRecurring(t)) {
       buckets[4].items.push(t);
       continue;
     }
-    const d = startOfDay(parseTaskDate(t.date));
+    const d = startOfDay(new Date(t.start_date));
     const k = dayKey(d);
     if (k === todayK) buckets[1].items.push(t);
     else if (d.getTime() < startOfDay(new Date()).getTime()) buckets[0].items.push(t);
@@ -374,7 +294,7 @@ function ByDate({ tasks, taskRow }: { tasks: Task[]; taskRow: (t: Task) => JSX.E
               <div className="bar" />
               <span className="cnt">{b.items.length}</span>
             </div>
-            {b.items.map((t) => taskRow(t))}
+            {b.items.map((t) => itemRow(t))}
           </div>
         ))}
     </>

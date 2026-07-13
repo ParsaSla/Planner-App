@@ -1,10 +1,9 @@
 import type {
-  Task,
+  Item,
+  ItemOccurrence,
+  ItemInput,
   Group,
-  TaskInput,
   GroupInput,
-  PlannerEvent,
-  EventInput,
   ImportPreview,
   ImportResult,
   CourseDecision,
@@ -46,74 +45,34 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  // ---- Tasks ----
-  async getTasks(): Promise<Task[]> {
-    const data = await request<{ success: boolean; tasks: Task[] }>('/api/tasks');
-    return data.tasks;
+  // ---- Items ----
+  // Raw source items — drive lists, smart views, and the edit form.
+  async getItems(): Promise<Item[]> {
+    const data = await request<{ success: boolean; items: Item[] }>('/api/items');
+    return data.items;
   },
 
-  async createTask(input: TaskInput): Promise<void> {
-    await request('/api/tasks', { method: 'POST', body: JSON.stringify(input) });
+  // Server-expanded occurrences over the [from, to) window (calendar / agenda).
+  async getOccurrences(from: string, to: string): Promise<ItemOccurrence[]> {
+    const data = await request<{ success: boolean; items: ItemOccurrence[] }>(
+      `/api/items/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+    );
+    return data.items;
   },
 
-  async updateTask(id: string, input: TaskInput): Promise<void> {
-    await request(`/api/tasks/${encodeURIComponent(id)}`, {
+  async createItem(input: ItemInput): Promise<void> {
+    await request('/api/items', { method: 'POST', body: JSON.stringify(input) });
+  },
+
+  async updateItem(id: string, input: ItemInput): Promise<void> {
+    await request(`/api/items/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: JSON.stringify(input),
     });
   },
 
-  async deleteTask(id: string): Promise<void> {
-    await request(`/api/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  },
-
-  async setOneTimeCompletion(id: string, completed: boolean): Promise<void> {
-    await request(`/api/tasks/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ completed }),
-    });
-  },
-
-  async setRecurringInstance(id: string, instanceDate: string, completed: boolean): Promise<void> {
-    await request(`/api/tasks/${encodeURIComponent(id)}/instance`, {
-      method: 'PATCH',
-      body: JSON.stringify({ instanceDate, completed }),
-    });
-  },
-
-  // ---- Events ----
-  async getEvents(): Promise<PlannerEvent[]> {
-    const data = await request<{ success: boolean; events: PlannerEvent[] }>('/api/events');
-    return data.events;
-  },
-
-  async createEvent(input: EventInput): Promise<void> {
-    await request('/api/events', { method: 'POST', body: JSON.stringify(input) });
-  },
-
-  async updateEvent(id: string, input: EventInput): Promise<void> {
-    await request(`/api/events/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(input),
-    });
-  },
-
-  async deleteEvent(id: string): Promise<void> {
-    await request(`/api/events/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  },
-
-  async setEventCompletion(id: string, completed: boolean): Promise<void> {
-    await request(`/api/events/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ completed }),
-    });
-  },
-
-  async setRecurringEventInstance(id: string, instanceDate: string, completed: boolean): Promise<void> {
-    await request(`/api/events/${encodeURIComponent(id)}/instance`, {
-      method: 'PATCH',
-      body: JSON.stringify({ instanceDate, completed }),
-    });
+  async deleteItem(id: string): Promise<void> {
+    await request(`/api/items/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 
   // ---- Groups (a.k.a. Courses on the backend) ----

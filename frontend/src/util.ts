@@ -1,16 +1,4 @@
-import type { PlannerItem, TaskInstance, Day, Group } from './types';
-import { isEventItem, isRecurringItem } from './types';
-
-// JS Date.getDay(): 0=Sun … 6=Sat → our Day names.
-const JS_DAY_TO_NAME: Day[] = [
-  'SUNDAY',
-  'MONDAY',
-  'TUESDAY',
-  'WEDNESDAY',
-  'THURSDAY',
-  'FRIDAY',
-  'SATURDAY',
-];
+import type { Day, Group } from './types';
 
 const DAY_LABEL: Record<Day, string> = {
   MONDAY: 'Mon',
@@ -69,84 +57,20 @@ export function parseTaskDate(iso: string): Date {
   return new Date(iso);
 }
 
-export function isToday(d: Date): boolean {
-  return sameDay(d, new Date());
+/**
+ * The absolute instant of a recurring series' nominal time. `start_time`/`end_time` are
+ * stored as a UTC time-of-day (bare "HH:mm"); combining them with the series' UTC anchor
+ * date yields an instant that `formatTime` then renders in the viewer's local zone — so the
+ * series list shows the same local time the calendar computes for each occurrence.
+ */
+export function seriesInstant(anchorISO: string, time: { hour: number; minute: number }): Date {
+  const a = new Date(anchorISO);
+  if (isNaN(a.getTime())) return a;
+  return new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate(), time.hour, time.minute));
 }
 
-/**
- * Expand tasks and events into concrete dated instances within [start, end]
- * (inclusive of start day, exclusive of end day). One-time items appear once if
- * they fall in range; recurring items appear on every matching weekday. Events
- * carry a real start→end span (endDate); tasks do not.
- */
-export function expandInstances(items: PlannerItem[], start: Date, end: Date): TaskInstance[] {
-  const out: TaskInstance[] = [];
-  const rangeStart = startOfDay(start).getTime();
-  const rangeEnd = startOfDay(end).getTime();
-
-  for (const item of items) {
-    const kind = isEventItem(item) ? 'event' : 'task';
-
-    if (isRecurringItem(item)) {
-      if (!item.days?.length) continue;
-      // Recurring task uses `time`; recurring event uses `startTime`/`endTime`.
-      const startH = 'startTime' in item ? item.startTime : item.time;
-      const endH = 'endTime' in item ? item.endTime : undefined;
-      for (let cur = new Date(rangeStart); cur.getTime() < rangeEnd; cur = addDays(cur, 1)) {
-        const name = JS_DAY_TO_NAME[cur.getDay()];
-        if (!item.days.includes(name)) continue;
-        const occ = new Date(cur);
-        occ.setHours(startH?.hour ?? 0, startH?.minute ?? 0, 0, 0);
-        let endDate: Date | undefined;
-        if (endH) {
-          endDate = new Date(cur);
-          endDate.setHours(endH.hour, endH.minute, 0, 0);
-        }
-        const key = dayKey(occ);
-        out.push({
-          item,
-          kind,
-          date: occ,
-          endDate,
-          dateKey: key,
-          completed: item.completedDates?.includes(key) ?? false,
-          instanceDate: key,
-          hasTime: true,
-        });
-      }
-    } else if (isEventItem(item)) {
-      // One-time event: real start/end datetimes.
-      const d = new Date(item.start);
-      if (isNaN(d.getTime())) continue;
-      const t = startOfDay(d).getTime();
-      if (t < rangeStart || t >= rangeEnd) continue;
-      const endDate = new Date(item.end);
-      out.push({
-        item,
-        kind,
-        date: d,
-        endDate: isNaN(endDate.getTime()) ? undefined : endDate,
-        dateKey: dayKey(d),
-        completed: item.completed,
-        hasTime: true,
-      });
-    } else {
-      // One-time task: date-only.
-      const d = parseTaskDate(item.date);
-      if (isNaN(d.getTime())) continue;
-      const t = startOfDay(d).getTime();
-      if (t < rangeStart || t >= rangeEnd) continue;
-      out.push({
-        item,
-        kind,
-        date: d,
-        dateKey: dayKey(d),
-        completed: item.completed,
-        hasTime: false,
-      });
-    }
-  }
-  return out.sort((a, b) => a.date.getTime() - b.date.getTime());
+export function isToday(d: Date): boolean {
+  return sameDay(d, new Date());
 }
 
 // ---- Formatting ----

@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useStore } from './useStore';
 import { useSettings } from './settings';
 import type { Selection } from './nav';
-import type { PlannerItem } from './types';
-import { isEventItem } from './types';
+import type { Item } from './types';
 import TopBar from './components/TopBar';
 import Sidebar from './components/Sidebar';
 import TaskView from './components/TaskView';
@@ -15,7 +14,7 @@ import SettingsModal from './components/SettingsModal';
 
 interface ModalState {
   initial: CreateKind;
-  editingItem?: PlannerItem;
+  editingItem?: Item;
 }
 
 export default function App() {
@@ -28,8 +27,7 @@ export default function App() {
   const [modal, setModal] = useState<ModalState | null>(null);
 
   const openCreate = (kind: CreateKind) => setModal({ initial: kind });
-  const openEdit = (item: PlannerItem) =>
-    setModal({ initial: isEventItem(item) ? 'event' : 'task', editingItem: item });
+  const openEdit = (item: Item) => setModal({ initial: 'item', editingItem: item });
 
   return (
     <div className="app">

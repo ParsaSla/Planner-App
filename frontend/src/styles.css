@@ -445,7 +445,8 @@ button {
   color: var(--text-dim);
   white-space: nowrap;
 }
-.tag-rec {
+.tag-rec,
+.tag-loc {
   font-size: 10.5px;
   color: var(--text-faint);
   border: 1px solid var(--border);

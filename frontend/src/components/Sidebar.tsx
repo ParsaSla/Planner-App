@@ -1,7 +1,6 @@
 import type { Store } from '../useStore';
 import type { Selection } from '../nav';
 import { selectionKey } from '../nav';
-import { isOneTime, isRecurring } from '../types';
 import { dayKey } from '../util';
 
 interface Props {
@@ -13,30 +12,22 @@ interface Props {
 }
 
 export default function Sidebar({ store, selection, onSelect, onNewGroup, onOpenSettings }: Props) {
-  const { tasks, events, groups } = store;
+  const { items, groups } = store;
   const todayKey = dayKey(new Date());
   const todayName = dayName(new Date());
 
   // Counts for the smart views.
-  const todayCount =
-    tasks.filter((t) => {
-      if (isOneTime(t)) return !t.completed && dayKey(new Date(t.date)) === todayKey;
-      return isRecurring(t) && t.days.some((d) => todayName === d);
-    }).length +
-    events.filter((e) =>
-      e.type === 'ONE_TIME'
-        ? dayKey(new Date(e.start)) === todayKey
-        : e.days.some((d) => todayName === d)
-    ).length;
-  const allCount = tasks.filter((t) => !(isOneTime(t) && t.completed)).length;
-  const recurringCount = tasks.filter(isRecurring).length;
-  const eventsCount = events.length;
+  const todayCount = items.filter((i) =>
+    i.recurrence === 'ONE_TIME'
+      ? dayKey(new Date(i.start_date)) === todayKey
+      : (i.daysOfWeek ?? []).some((d) => d === todayName)
+  ).length;
+  const allCount = items.length;
+  const recurringCount = items.filter((i) => i.recurrence === 'RECURRING').length;
 
   const sel = selectionKey(selection);
 
-  const groupCount = (id: string) =>
-    tasks.filter((t) => t.course_id === id && !(isOneTime(t) && t.completed)).length +
-    events.filter((e) => e.course_id === id).length;
+  const groupCount = (id: string) => items.filter((i) => i.courseId === id).length;
 
   return (
     <aside className="sidebar">
@@ -49,7 +40,7 @@ export default function Sidebar({ store, selection, onSelect, onNewGroup, onOpen
       />
       <SmartItem
         icon="📋"
-        label="All Tasks"
+        label="All Items"
         count={allCount}
         active={sel === 'view:all'}
         onClick={() => onSelect({ kind: 'view', view: 'all' })}
@@ -60,19 +51,6 @@ export default function Sidebar({ store, selection, onSelect, onNewGroup, onOpen
         count={recurringCount}
         active={sel === 'view:recurring'}
         onClick={() => onSelect({ kind: 'view', view: 'recurring' })}
-      />
-      <SmartItem
-        icon="📅"
-        label="Events"
-        count={eventsCount}
-        active={sel === 'view:events'}
-        onClick={() => onSelect({ kind: 'view', view: 'events' })}
-      />
-      <SmartItem
-        icon="✓"
-        label="Completed"
-        active={sel === 'view:completed'}
-        onClick={() => onSelect({ kind: 'view', view: 'completed' })}
       />
 
       <div className="side-label">Groups</div>
