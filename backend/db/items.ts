@@ -10,7 +10,6 @@ export interface ItemRow {
     title: string;
     description: string | null;
     location: string | null;
-    date: string | null;
     start_date: string | null;
     end_date: string | null;
     completed: number | null;
@@ -32,7 +31,6 @@ const UPDATABLE_COLUMNS = [
     'title',
     'description',
     'location',
-    'date',
     'start_date',
     'end_date',
     'completed',
@@ -55,7 +53,6 @@ export function createItemRow(item: {
     title: string;
     description?: string | null;
     location?: string | null;
-    date?: string | null;
     start_date?: string | null;
     end_date?: string | null;
     completed?: number | null;
@@ -71,14 +68,13 @@ export function createItemRow(item: {
 }): number {
     const db = getSQLiteDB();
     const info = db.prepare(
-        `INSERT INTO items (uid, course_id, kind, recurrence, title, description, location, date, start_date, end_date, completed, start_time, end_time, source_uid, ical_uid, rrule, exdate, rdate, created_at, updated_at)
-         VALUES (@uid, @course_id, @kind, @recurrence, @title, @description, @location, @date, @start_date, @end_date, @completed, @start_time, @end_time, @source_uid, @ical_uid, @rrule, @exdate, @rdate, @created_at, @updated_at)`
+        `INSERT INTO items (uid, course_id, kind, recurrence, title, description, location, start_date, end_date, completed, start_time, end_time, source_uid, ical_uid, rrule, exdate, rdate, created_at, updated_at)
+         VALUES (@uid, @course_id, @kind, @recurrence, @title, @description, @location, @start_date, @end_date, @completed, @start_time, @end_time, @source_uid, @ical_uid, @rrule, @exdate, @rdate, @created_at, @updated_at)`
     ).run({
         ...item,
         course_id: item.course_id ?? null,
         description: item.description ?? null,
         location: item.location ?? null,
-        date: item.date ?? null,
         start_date: item.start_date ?? null,
         end_date: item.end_date ?? null,
         completed: item.completed ?? null,

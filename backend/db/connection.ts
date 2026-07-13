@@ -91,7 +91,6 @@ function initializeSQLite(dbPath: string): void {
             title TEXT NOT NULL,                   -- iCal: VEVENT SUMMARY
             description TEXT,                       -- iCal: VEVENT DESCRIPTION
             location TEXT,                          -- iCal: VEVENT LOCATION
-            date TEXT,                             -- ONE_TIME: calendar date (YYYY-MM-DD). iCal ONE_TIME: DTSTART
             start_date TEXT,                       -- ONE_TIME: task due datetime / event start (ISO-8601). iCal: DTSTART (RRULE anchor)
             end_date TEXT,                         -- ONE_TIME event end (ISO-8601); NULL for tasks. iCal: DTEND
             completed INTEGER,                     -- ONE_TIME only
