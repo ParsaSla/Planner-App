@@ -135,32 +135,33 @@ export function deleteItemById(uid: string, itemId: number): number {
     return db.prepare('DELETE FROM items WHERE uid = @uid AND id = @id').run({ uid, id: itemId }).changes;
 }
 
-// // Per-occurrence completion for RECURRING items lives in the `completions` table.
-// // A row's presence means "this occurrence on instance_date is done".
+// Per-occurrence completion for RECURRING items lives in the `completions` table. A row's
+// presence means "this occurrence (identified by its absolute UTC start instant) is done".
+// ONE_TIME items instead use the items.completed column.
 
-// export interface CompletionRow {
-//     item_id: string;
-//     uid: string;
-//     instance_date: string;
-// }
+export interface CompletionRow {
+    item_id: number;
+    uid: string;
+    instance_start: string;   // the occurrence's absolute UTC start instant (ISO-8601)
+}
 
-// export function getCompletionsByUID(uid: string): CompletionRow[] {
-//     const db = getSQLiteDB();
-//     return db.prepare<{ uid: string }, CompletionRow>('SELECT * FROM completions WHERE uid = @uid').all({ uid });
-// }
+export function getCompletionsByUID(uid: string): CompletionRow[] {
+    const db = getSQLiteDB();
+    return db.prepare<{ uid: string }, CompletionRow>('SELECT * FROM completions WHERE uid = @uid').all({ uid });
+}
 
-// /** Marks a recurring occurrence complete. Idempotent — a duplicate is a no-op. */
-// export function addCompletion(uid: string, itemId: string, instanceDate: string): void {
-//     const db = getSQLiteDB();
-//     db.prepare(
-//         `INSERT OR IGNORE INTO completions (item_id, uid, instance_date) VALUES (@item_id, @uid, @instance_date)`
-//     ).run({ item_id: itemId, uid, instance_date: instanceDate });
-// }
+/** Marks a recurring occurrence complete. Idempotent — a duplicate is a no-op. */
+export function addCompletion(uid: string, itemId: number, instanceStart: string): void {
+    const db = getSQLiteDB();
+    db.prepare(
+        `INSERT OR IGNORE INTO completions (item_id, uid, instance_start) VALUES (@item_id, @uid, @instance_start)`
+    ).run({ item_id: itemId, uid, instance_start: instanceStart });
+}
 
-// /** Clears a recurring occurrence's completion. Returns the number of rows removed. */
-// export function removeCompletion(uid: string, itemId: string, instanceDate: string): number {
-//     const db = getSQLiteDB();
-//     return db.prepare(
-//         'DELETE FROM completions WHERE uid = @uid AND item_id = @item_id AND instance_date = @instance_date'
-//     ).run({ uid, item_id: itemId, instance_date: instanceDate }).changes;
-// }
+/** Clears a recurring occurrence's completion. Returns the number of rows removed. */
+export function removeCompletion(uid: string, itemId: number, instanceStart: string): number {
+    const db = getSQLiteDB();
+    return db.prepare(
+        'DELETE FROM completions WHERE uid = @uid AND item_id = @item_id AND instance_start = @instance_start'
+    ).run({ uid, item_id: itemId, instance_start: instanceStart }).changes;
+}

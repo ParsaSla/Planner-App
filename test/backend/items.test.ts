@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { initializeDB, closeDB } from '../../backend/db/connection';
 import { register } from '../../backend/auth';
-import { createItem, getItems, updateItem, deleteItem, getItemOccurrences } from '../../backend/api/items';
-import { createItemRow } from '../../backend/db/items';
+import { createItem, getItems, updateItem, deleteItem, getItemOccurrences, setOneTimeCompletion, setOccurrenceCompletion } from '../../backend/api/items';
+import { createItemRow, updateItemById } from '../../backend/db/items';
 
 // createItem/updateItem take courseID as a number but tolerate `undefined` (no course).
 const NO_COURSE = undefined as unknown as number;
@@ -193,5 +193,129 @@ describe('backend/api/items getItemOccurrences', () => {
     expect(occ[0].start).toBe('2026-03-30T11:00:00.000Z'); // Mon 22:00 Sydney
     expect(occ[0].end).toBe('2026-03-30T15:00:00.000Z');   // Tue 02:00 Sydney — end after start
     expect(new Date(occ[0].end).getTime()).toBeGreaterThan(new Date(occ[0].start).getTime());
+  });
+});
+
+describe('backend/api/items completion', () => {
+  beforeEach(() => {
+    closeDB();
+    initializeDB(':memory:');
+  });
+  afterEach(() => {
+    closeDB();
+  });
+
+  const WINDOW = ['2026-07-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z'] as const;
+
+  it('toggles a one-time item via items.completed', () => {
+    const uid = register('compone', 'Password123');
+    createItem(uid, NO_COURSE, 'ONE_TIME', 'Submit report', '', '', '',
+      '2026-07-01T09:00:00.000Z', '2026-07-01T11:00:00.000Z', '', [], NO_TIME, NO_TIME);
+    const id = getItems(uid)[0].id;
+
+    expect(getItemOccurrences(uid, ...WINDOW)[0].completed).toBe(false);
+
+    setOneTimeCompletion(uid, id, true);
+    expect(getItemOccurrences(uid, ...WINDOW)[0].completed).toBe(true);
+
+    setOneTimeCompletion(uid, id, false);
+    expect(getItemOccurrences(uid, ...WINDOW)[0].completed).toBe(false);
+  });
+
+  it('marks only the targeted occurrence of a recurring item complete', () => {
+    const uid = register('comprec', 'Password123');
+    // Weekly Monday 09:00, anchored 2026-07-06.
+    createItem(uid, NO_COURSE, 'RECURRING', 'Lecture', '', '', '',
+      '2026-07-06T00:00:00.000Z', '', '', ['MONDAY'], { hour: 9, minute: 0 }, { hour: 10, minute: 30 });
+    const id = getItems(uid)[0].id;
+
+    setOccurrenceCompletion(uid, id, '2026-07-13T09:00:00.000Z', true);
+
+    const done = getItemOccurrences(uid, ...WINDOW).filter(o => o.completed).map(o => o.start);
+    expect(done).toEqual(['2026-07-13T09:00:00.000Z']);
+
+    // The completed instant also surfaces on the raw items path (completedDates).
+    const raw = getItems(uid)[0];
+    if (raw.recurrence === 'RECURRING') {
+      expect(raw.completedDates).toEqual(['2026-07-13T09:00:00.000Z']);
+    }
+
+    // Un-tick removes it.
+    setOccurrenceCompletion(uid, id, '2026-07-13T09:00:00.000Z', false);
+    expect(getItemOccurrences(uid, ...WINDOW).every(o => !o.completed)).toBe(true);
+  });
+
+  it('rejects completing an instant that is not a real occurrence (no phantom rows)', () => {
+    const uid = register('compbogus', 'Password123');
+    createItem(uid, NO_COURSE, 'RECURRING', 'Lecture', '', '', '',
+      '2026-07-06T00:00:00.000Z', '', '', ['MONDAY'], { hour: 9, minute: 0 }, { hour: 10, minute: 30 });
+    const id = getItems(uid)[0].id;
+
+    // A Tuesday (wrong weekday) and a wrong time-of-day both fail loudly.
+    expect(() => setOccurrenceCompletion(uid, id, '2026-07-14T09:00:00.000Z', true)).toThrow();
+    expect(() => setOccurrenceCompletion(uid, id, '2026-07-13T09:30:00.000Z', true)).toThrow();
+    // Nothing was written.
+    expect(getItemOccurrences(uid, ...WINDOW).every(o => !o.completed)).toBe(true);
+  });
+
+  it('rejects mismatched completion kinds', () => {
+    const uid = register('compkind', 'Password123');
+    createItem(uid, NO_COURSE, 'ONE_TIME', 'Exam', '', '', '',
+      '2026-07-01T09:00:00.000Z', '2026-07-01T11:00:00.000Z', '', [], NO_TIME, NO_TIME);
+    createItem(uid, NO_COURSE, 'RECURRING', 'Lecture', '', '', '',
+      '2026-07-06T00:00:00.000Z', '', '', ['MONDAY'], { hour: 9, minute: 0 }, { hour: 10, minute: 30 });
+    const oneTime = getItems(uid).find(i => i.recurrence === 'ONE_TIME')!;
+    const recurring = getItems(uid).find(i => i.recurrence === 'RECURRING')!;
+
+    // one-time via the occurrence path, and recurring via the one-time path, both throw.
+    expect(() => setOccurrenceCompletion(uid, oneTime.id, '2026-07-01T09:00:00.000Z', true)).toThrow();
+    expect(() => setOneTimeCompletion(uid, recurring.id, true)).toThrow();
+  });
+
+  it('keys recurring completion by absolute UTC instant across a DST transition', () => {
+    const uid = register('compdst', 'Password123');
+    // Weekly Monday 09:00 Sydney; the +11 (Mar 30) and +10 (Apr 6) occurrences share the local
+    // wall-clock but have different UTC instants — instant keying must pick exactly one.
+    createItemRow({
+      uid, course_id: null, kind: 'EVENT', recurrence: 'RECURRING', title: 'Lecture',
+      description: null, location: null,
+      start_date: '2026-03-29T22:00:00.000Z', end_date: null, completed: null,
+      start_time: '09:00:00', end_time: '10:30:00',
+      timezone: 'Australia/Sydney', all_day: null,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO', exdate: null, rdate: null,
+      source_uid: null, ical_uid: null, created_at: new Date().toISOString(), updated_at: null,
+    });
+    const id = getItems(uid)[0].id;
+
+    setOccurrenceCompletion(uid, id, '2026-04-05T23:00:00.000Z', true); // the +10 (Apr 6) instant
+
+    const done = getItemOccurrences(uid, '2026-03-29T00:00:00.000Z', '2026-04-14T00:00:00.000Z')
+      .filter(o => o.completed).map(o => o.start);
+    expect(done).toEqual(['2026-04-05T23:00:00.000Z']);
+  });
+
+  it('preserves completion when a row is updated in place (iCal re-import)', () => {
+    const uid = register('compreimport', 'Password123');
+    // A recurring iCal-style row.
+    createItemRow({
+      uid, course_id: null, kind: 'EVENT', recurrence: 'RECURRING', title: 'Tutorial',
+      description: null, location: 'Room A',
+      start_date: '2026-07-06T09:00:00.000Z', end_date: null, completed: null,
+      start_time: '09:00:00', end_time: '10:30:00',
+      timezone: null, all_day: null,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO', exdate: null, rdate: null,
+      source_uid: null, ical_uid: 'evt-123', created_at: new Date().toISOString(), updated_at: null,
+    });
+    const id = getItems(uid)[0].id;
+
+    setOccurrenceCompletion(uid, id, '2026-07-13T09:00:00.000Z', true);
+
+    // Re-import refreshes the row in place (same id) — e.g. a renamed class / moved room.
+    updateItemById(uid, id, { title: 'Tutorial (renamed)', location: 'Room B' }, new Date().toISOString());
+
+    const occ = getItemOccurrences(uid, ...WINDOW);
+    expect(occ[0].title).toBe('Tutorial (renamed)');
+    const done = occ.filter(o => o.completed).map(o => o.start);
+    expect(done).toEqual(['2026-07-13T09:00:00.000Z']);
   });
 });

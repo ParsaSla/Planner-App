@@ -89,6 +89,8 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
         groupName={groupName}
         when={when}
         location={t.location}
+        completed={t.completed}
+        onToggle={() => store.setCompletion(t.id, !t.completed)}
         onEdit={() => onEdit(t)}
         onDelete={() => del(t)}
       />
@@ -138,6 +140,10 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
                   groupName={store.groupById(o.courseId)?.name}
                   when={when}
                   location={o.location}
+                  completed={o.completed}
+                  onToggle={() =>
+                    store.setCompletion(o.id, !o.completed, o.recurrence === 'RECURRING' ? o.start : undefined)
+                  }
                   onEdit={() => {
                     const src = store.items.find((it) => it.id === o.id);
                     if (src) onEdit(src);

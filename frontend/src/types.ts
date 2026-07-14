@@ -48,6 +48,8 @@ export interface Item {
   end_time?: TimeOfDay; // RECURRING only — wall-clock in `timezone`
   timezone?: string; // IANA TZID the wall-clock/recurrence is expressed in
   allDay?: boolean;
+  completed?: boolean; // ONE_TIME only
+  completedDates?: string[]; // RECURRING only — completed occurrence start instants (ISO-8601)
 }
 
 /**
@@ -65,6 +67,7 @@ export interface ItemOccurrence {
   start: string; // ISO-8601 absolute UTC instant
   end: string; // ISO-8601 absolute UTC instant
   allDay?: boolean;
+  completed: boolean; // whether this occurrence is ticked off
 }
 
 /** The one remaining discriminator on a raw item. */

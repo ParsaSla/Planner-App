@@ -71,7 +71,7 @@ erDiagram
     COMPLETIONS {
         string item_id FK "Composite PK; -> ITEMS, ON DELETE CASCADE"
         string uid FK "Foreign Key"
-        string instance_date "YYYY-MM-DD; composite PK"
+        string instance_start "occurrence's absolute UTC start instant (ISO-8601); composite PK"
     }
 
     COURSES {
@@ -127,8 +127,10 @@ erDiagram
     for hand-created rows. `ical_uid` is the source VEVENT's own UID (stable identity for re-imports).
 - **ICALS** — saved iCal/webcal calendar subscriptions (one row per feed a user has added).
   Deleting a subscription cascade-deletes the items imported from it.
-- **COMPLETIONS** — per-occurrence completion for recurring items. A row exists only for a
-  completed occurrence; `PRIMARY KEY (item_id, instance_date)` prevents duplicates.
+- **COMPLETIONS** — per-occurrence completion for recurring items, keyed by the occurrence's
+  absolute UTC start instant. A row exists only for a completed occurrence;
+  `PRIMARY KEY (item_id, instance_start)` prevents duplicates. (ONE_TIME items use
+  `items.completed` instead.)
 - **COURSES** — course/subject categorization with color coding.
 - **SETTINGS** / **SETTINGS_TERM_DATES** — per-user term system, flex week, and each term's
   start/end (day + month).

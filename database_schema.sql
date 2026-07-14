@@ -100,8 +100,8 @@ CREATE TABLE IF NOT EXISTS icals (
 CREATE TABLE IF NOT EXISTS completions (
   item_id INTEGER NOT NULL,
   uid TEXT NOT NULL,
-  instance_date TEXT NOT NULL,          -- the specific occurrence date (YYYY-MM-DD)
-  PRIMARY KEY (item_id, instance_date),
+  instance_start TEXT NOT NULL,         -- the occurrence's absolute UTC start instant (ISO-8601), matching ItemOccurrence.start
+  PRIMARY KEY (item_id, instance_start),
   FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
   FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
 );
@@ -194,9 +194,9 @@ CREATE INDEX IF NOT EXISTS idx_sessions_uid ON sessions(uid);
 --   - recurrence: 'ONE_TIME' or 'RECURRING'.
 --   - ONE_TIME rows: start_date (task due datetime / event start),
 --     end_date (event end, NULL for tasks), completed.
---   - RECURRING rows: days_of_week (JSON array of day names). Expanded on the fly into
---     individual instances for display (4-week window); per-occurrence completion lives
---     in the completions table.
+--   - RECURRING rows: a single iCal RRULE in `rrule` (+ exdate/rdate), anchored by start_date
+--     (UTC instant) + start_time (wall-clock in timezone). Expanded on the fly into individual
+--     instances for display; per-occurrence completion lives in the completions table.
 --   - location: free-text location, e.g. carried over from an imported VEVENT.
 --   - course_id: Associated course/category (nullable), FK to courses(id) ON DELETE SET NULL.
 --   - source_uid: FK to icals(id) ON DELETE CASCADE — which iCal subscription an item was
@@ -207,9 +207,10 @@ CREATE INDEX IF NOT EXISTS idx_sessions_uid ON sessions(uid);
 --   - items.source_uid -> icals.id; deleting a subscription cascades to its imported items.
 --
 -- Completions Table:
---   - Records completion of a single occurrence (instance_date) of a RECURRING item (task or
---     event). Presence of a row = that instance is completed.
---   - item_id -> items(id); PRIMARY KEY (item_id, instance_date) prevents duplicates, and the
+--   - Records completion of a single occurrence of a RECURRING item (task or event), keyed by
+--     the occurrence's absolute UTC start instant (instance_start). Presence of a row = that
+--     instance is completed. ONE_TIME items instead use the items.completed column.
+--   - item_id -> items(id); PRIMARY KEY (item_id, instance_start) prevents duplicates, and the
 --     FK cascade removes completions when the owning item is deleted.
 --
 -- Courses Table (Phase 3):
@@ -223,10 +224,11 @@ CREATE INDEX IF NOT EXISTS idx_sessions_uid ON sessions(uid);
 --
 -- iCal Import:
 --   - A timetable iCal/webcal subscription is saved as a row in `icals` (url, active,
---     last_imported). On import, each VEVENT is expanded into its concrete occurrences and
---     stored as ONE_TIME EVENT rows in `items` with source_uid set to the subscription's id.
---     Re-imports skip rows whose (source_uid, start_date) already exist, so re-syncing adds
---     only new occurrences.
+--     last_imported). On import, each VEVENT series is stored as ONE item row with source_uid
+--     set to the subscription's id: recurring VEVENTs keep their raw RRULE (rather than being
+--     expanded) and become RECURRING rows; single VEVENTs become ONE_TIME rows.
+--     Re-imports match on (source_uid, ical_uid) and update the existing row in place, so an
+--     item's id — and therefore its completions — survives re-syncing.
 --
 -- Study Logs Table (Phase 3B — PLANNED):
 --   - Not yet created by dbManager.ts. Included here as the intended design.

@@ -4,7 +4,7 @@ import {invalidateSession, validateSession, login, register} from './backend/aut
 import { initializeDB } from './backend/db/connection';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, createCourse, getCourses, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport, addIcal, removeIcal, updateIcal, getIcal, getIcals } from './backend/API';
+import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, setOneTimeCompletion, setOccurrenceCompletion, createCourse, getCourses, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport, addIcal, removeIcal, updateIcal, getIcal, getIcals } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -138,6 +138,26 @@ app.put("/api/items/:id", (req, res) => {
 app.delete("/api/items/:id", (req, res) => {
   const UID = authenticate(req);
   deleteItem(UID, Number(req.params.id));
+  res.status(200).json({ success: true });
+});
+
+// toggle completion, expects { completed: boolean, start?: <ISO> }.
+// `start` (an occurrence's absolute UTC start instant) is required for RECURRING items and must
+// be omitted for ONE_TIME items; each path validates the item's recurrence and fails loudly.
+app.patch("/api/items/:id/completion", (req, res) => {
+  const UID = authenticate(req);
+  const { completed, start } = req.body;
+  if (typeof completed !== 'boolean') {
+    throw new AppError('`completed` must be a boolean', ERRORS.INVALID_ITEM_DATA);
+  }
+  const id = Number(req.params.id);
+  if (typeof start === 'string') {
+    setOccurrenceCompletion(UID, id, start, completed);
+  } else if (start === undefined) {
+    setOneTimeCompletion(UID, id, completed);
+  } else {
+    throw new AppError('`start` must be an ISO string when provided', ERRORS.INVALID_ITEM_DATA);
+  }
   res.status(200).json({ success: true });
 });
 

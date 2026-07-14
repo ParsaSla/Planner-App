@@ -1319,6 +1319,43 @@ button {
 .tg-ev.done {
   opacity: 0.55;
 }
+.tg-ev.done .et {
+  text-decoration: line-through;
+}
+.tg-ev .et {
+  padding-right: 18px; /* leave room for the completion checkbox */
+}
+/* Completion checkbox on a calendar event block. */
+.cal-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 2px solid var(--c, var(--accent));
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.55;
+  display: grid;
+  place-items: center;
+  z-index: 1;
+}
+.cal-check:hover {
+  opacity: 1;
+}
+.tg-ev.done .cal-check {
+  background: var(--c, var(--accent));
+  opacity: 0.9;
+}
+.tg-ev.done .cal-check::after {
+  content: '✓';
+  font-size: 10px;
+  line-height: 1;
+  color: #0d0f14;
+  font-weight: 800;
+}
 .tg-allday {
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);

@@ -114,8 +114,8 @@ function initializeSQLite(dbPath: string): void {
         CREATE TABLE IF NOT EXISTS completions (
             item_id INTEGER NOT NULL,
             uid TEXT NOT NULL,
-            instance_date TEXT NOT NULL,
-            PRIMARY KEY (item_id, instance_date),
+            instance_start TEXT NOT NULL,          -- the occurrence's absolute UTC start instant (ISO-8601), matching ItemOccurrence.start
+            PRIMARY KEY (item_id, instance_start),
             FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE CASCADE,
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
@@ -141,6 +141,7 @@ function initializeSQLite(dbPath: string): void {
     `);
 
     migrateItemsColumns(sqliteDB);
+    migrateCompletionsColumn(sqliteDB);
 }
 
 // There is no migration framework — CREATE TABLE IF NOT EXISTS never alters an existing
@@ -168,6 +169,27 @@ function migrateItemsColumns(db: Database.Database): void {
     if (existing.has('days_of_week')) {
         db.exec(`ALTER TABLE items DROP COLUMN days_of_week`);
     }
+}
+
+// Older DBs have a `completions` table keyed by `instance_date` (YYYY-MM-DD); completion is now
+// keyed by the occurrence's absolute UTC start instant in `instance_start`. The feature was never
+// wired before this change, so the table is empty and can be recreated rather than migrated.
+function migrateCompletionsColumn(db: Database.Database): void {
+    const cols = new Set(
+        db.prepare(`PRAGMA table_info(completions)`).all().map((col) => (col as { name: string }).name)
+    );
+    if (cols.has('instance_start') || cols.size === 0) return; // already new, or table absent
+    db.exec(`
+        DROP TABLE completions;
+        CREATE TABLE completions (
+            item_id INTEGER NOT NULL,
+            uid TEXT NOT NULL,
+            instance_start TEXT NOT NULL,
+            PRIMARY KEY (item_id, instance_start),
+            FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE CASCADE,
+            FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
+        );
+    `);
 }
 
 export function getSQLiteDB(): Database.Database {

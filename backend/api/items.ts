@@ -4,7 +4,8 @@ import { TimeOfDay, DAY, assertDaysType, assertTimeOfDayType } from '../types/Ge
 import AppError from '../error/appError';
 import { ERRORS } from '../error/errors';
 import {getCourseById} from '../db/courses';
-import { createItemRow, getItemsByUID, deleteItemById, updateItemById, ItemUpdate, ItemRow } from '../db/items';
+import { createItemRow, getItemsByUID, getItemById, deleteItemById, updateItemById, ItemUpdate, ItemRow, getCompletionsByUID, addCompletion, removeCompletion } from '../db/items';
+import { groupCompletedInstants } from '../db/helpers';
 import { requireUser } from './helpers';
 
 
@@ -258,7 +259,14 @@ function mapItemRowToItem(itemRow: ItemRow): Item {
 export function getItems(UID: string): Item[] {
     requireUser(UID);
 
-    return getItemsByUID(UID).map(mapItemRowToItem);
+    // Attach per-occurrence completion (recurring) so list/smart views can show done state.
+    const completedByItem = groupCompletedInstants(getCompletionsByUID(UID), (c) => String(c.item_id));
+    return getItemsByUID(UID).map(mapItemRowToItem).map((item) => {
+        if (item.recurrence === RECURRENCE.RECURRING) {
+            item.completedDates = completedByItem.get(String(item.id)) ?? [];
+        }
+        return item;
+    });
 }
 
 export function deleteItem(UID: string, itemId: number): void {
@@ -380,6 +388,7 @@ export interface ItemOccurrence {
     start: string;   // ISO-8601 absolute UTC instant of this occurrence
     end: string;     // ISO-8601 absolute UTC instant of this occurrence
     allDay?: boolean;
+    completed: boolean;   // ONE_TIME: items.completed; RECURRING: this occurrence has a completions row
 }
 
 // Expansion is timezone-aware. Each item's wall-clock time-of-day and recurrence are expressed
@@ -416,10 +425,81 @@ function stampNaive(naive: Date, time: TimeOfDay): Date {
 }
 
 /**
- * Expand a user's items into concrete occurrences within the [from, to) window. One-time
- * items are included when their start falls in the window; recurring items are expanded
- * from their RRULE (honouring UNTIL) in the item's timezone, then EXDATE days are dropped
- * and RDATE days added. Results are sorted ascending by start.
+ * Expand a single item into its concrete occurrences within the [from, to) window. A ONE_TIME
+ * item yields at most one (when its start falls in the window); a RECURRING item is expanded
+ * from its RRULE (honouring UNTIL) in the item's timezone, then EXDATE days are dropped and
+ * RDATE days added. `completed` is left `false` here — callers stamp it from the item's
+ * `completed` column (ONE_TIME) or the completions table (RECURRING).
+ */
+function expandItem(item: Item, fromDate: Date, toDate: Date): ItemOccurrence[] {
+    const inWindow = (t: number) => t >= fromDate.getTime() && t < toDate.getTime();
+    const base = {
+        id: item.id,
+        courseId: item.courseId,
+        title: item.title,
+        description: item.description,
+        location: item.location,
+    };
+    const out: ItemOccurrence[] = [];
+
+    if (item.recurrence === RECURRENCE.ONE_TIME) {
+        if (inWindow(new Date(item.start_date).getTime())) {
+            out.push({ ...base, recurrence: 'ONE_TIME', start: item.start_date, end: item.end_date, allDay: item.allDay, completed: false });
+        }
+        return out;
+    }
+
+    // RECURRING — expand the RRULE in the item's zone.
+    if (!item.rrule) return out;
+    const zone = item.timezone || 'utc';
+    const overnight = MINUTES(item.end_time) <= MINUTES(item.start_time);
+
+    // Generate naive occurrences: dtstart is the anchor's zone-local wall-clock date + start_time,
+    // and any UNTIL (a true UTC instant per RFC 5545) is reinterpreted onto the same naive basis.
+    let naiveDates: Date[];
+    try {
+        const options = RRule.parseString(item.rrule);
+        const anchorNaive = toNaive(item.start_date, zone);
+        options.dtstart = stampNaive(anchorNaive, item.start_time);
+        if (options.until) options.until = toNaive(options.until, zone);
+        // Widen the query window by a day each side (in naive terms) so DST/offset shifts near the
+        // edges aren't clipped; the exact instant is re-checked with inWindow below.
+        const naiveFrom = new Date(toNaive(fromDate, zone).getTime() - ONE_DAY_MS);
+        const naiveTo = new Date(toNaive(toDate, zone).getTime() + ONE_DAY_MS);
+        naiveDates = new RRule(options).between(naiveFrom, naiveTo, true);
+    } catch {
+        // A malformed rule shouldn't sink the whole calendar — skip this series.
+        return out;
+    }
+
+    // Term breaks / holidays are excluded by whole zone-local day; RDATE adds one-off dates.
+    const excludedDays = new Set((item.exdate ?? []).map((d) => toNaive(d, zone).toISOString().slice(0, 10)));
+    for (const rd of item.rdate ?? []) {
+        const t = new Date(rd);
+        if (!isNaN(t.getTime())) naiveDates.push(stampNaive(toNaive(t, zone), item.start_time));
+    }
+
+    for (const occNaive of naiveDates) {
+        if (excludedDays.has(occNaive.toISOString().slice(0, 10))) continue;
+        const startInstant = fromNaive(occNaive, zone);
+        if (!inWindow(startInstant.getTime())) continue;      // enforce window on the true instant
+        const endNaive = stampNaive(occNaive, item.end_time);
+        if (overnight) endNaive.setUTCDate(endNaive.getUTCDate() + 1); // 22:00→02:00 spills to next day
+        out.push({
+            ...base,
+            recurrence: 'RECURRING',
+            start: startInstant.toISOString(),
+            end: fromNaive(endNaive, zone).toISOString(),
+            allDay: item.allDay,
+            completed: false,
+        });
+    }
+    return out;
+}
+
+/**
+ * Expand a user's items into concrete occurrences within the [from, to) window, each stamped
+ * with its completion state. Results are sorted ascending by start.
  */
 export function getItemOccurrences(UID: string, from: string, to: string): ItemOccurrence[] {
     requireUser(UID);
@@ -433,71 +513,69 @@ export function getItemOccurrences(UID: string, from: string, to: string): ItemO
         throw new AppError('`to` must not be before `from`', ERRORS.INVALID_ITEM_DATA);
     }
 
-    const inWindow = (t: number) => t >= fromDate.getTime() && t < toDate.getTime();
+    // Completed recurring occurrences, keyed "<item_id>|<occurrence start ISO>".
+    const completedSet = new Set(getCompletionsByUID(UID).map((c) => `${c.item_id}|${c.instance_start}`));
+
     const occurrences: ItemOccurrence[] = [];
-
     for (const item of getItemsByUID(UID).map(mapItemRowToItem)) {
-        const base = {
-            id: item.id,
-            courseId: item.courseId,
-            title: item.title,
-            description: item.description,
-            location: item.location,
-        };
-
+        const occs = expandItem(item, fromDate, toDate);
         if (item.recurrence === RECURRENCE.ONE_TIME) {
-            if (inWindow(new Date(item.start_date).getTime())) {
-                occurrences.push({ ...base, recurrence: 'ONE_TIME', start: item.start_date, end: item.end_date, allDay: item.allDay });
-            }
-            continue;
+            for (const occ of occs) occ.completed = item.completed;
+        } else {
+            for (const occ of occs) occ.completed = completedSet.has(`${occ.id}|${occ.start}`);
         }
-
-        // RECURRING — expand the RRULE in the item's zone.
-        if (!item.rrule) continue;
-        const zone = item.timezone || 'utc';
-        const overnight = MINUTES(item.end_time) <= MINUTES(item.start_time);
-
-        // Generate naive occurrences: dtstart is the anchor's zone-local wall-clock date + start_time,
-        // and any UNTIL (a true UTC instant per RFC 5545) is reinterpreted onto the same naive basis.
-        let naiveDates: Date[];
-        try {
-            const options = RRule.parseString(item.rrule);
-            const anchorNaive = toNaive(item.start_date, zone);
-            options.dtstart = stampNaive(anchorNaive, item.start_time);
-            if (options.until) options.until = toNaive(options.until, zone);
-            // Widen the query window by a day each side (in naive terms) so DST/offset shifts near the
-            // edges aren't clipped; the exact instant is re-checked with inWindow below.
-            const naiveFrom = new Date(toNaive(fromDate, zone).getTime() - ONE_DAY_MS);
-            const naiveTo = new Date(toNaive(toDate, zone).getTime() + ONE_DAY_MS);
-            naiveDates = new RRule(options).between(naiveFrom, naiveTo, true);
-        } catch {
-            // A malformed rule shouldn't sink the whole calendar — skip this series.
-            continue;
-        }
-
-        // Term breaks / holidays are excluded by whole zone-local day; RDATE adds one-off dates.
-        const excludedDays = new Set((item.exdate ?? []).map((d) => toNaive(d, zone).toISOString().slice(0, 10)));
-        for (const rd of item.rdate ?? []) {
-            const t = new Date(rd);
-            if (!isNaN(t.getTime())) naiveDates.push(stampNaive(toNaive(t, zone), item.start_time));
-        }
-
-        for (const occNaive of naiveDates) {
-            if (excludedDays.has(occNaive.toISOString().slice(0, 10))) continue;
-            const startInstant = fromNaive(occNaive, zone);
-            if (!inWindow(startInstant.getTime())) continue;      // enforce window on the true instant
-            const endNaive = stampNaive(occNaive, item.end_time);
-            if (overnight) endNaive.setUTCDate(endNaive.getUTCDate() + 1); // 22:00→02:00 spills to next day
-            occurrences.push({
-                ...base,
-                recurrence: 'RECURRING',
-                start: startInstant.toISOString(),
-                end: fromNaive(endNaive, zone).toISOString(),
-                allDay: item.allDay,
-            });
-        }
+        occurrences.push(...occs);
     }
 
     occurrences.sort((a, b) => a.start.localeCompare(b.start));
     return occurrences;
+}
+
+// ---------------------------------------------------------------------------
+// Completion toggles.
+// ---------------------------------------------------------------------------
+
+/** Set completion on a ONE_TIME item (manual or iCal single VEVENT) via items.completed. */
+export function setOneTimeCompletion(uid: string, id: number, completed: boolean): void {
+    requireUser(uid);
+    const row = getItemById(uid, id);
+    if (!row) {
+        throw new AppError('Item not found', ERRORS.ITEM_NOT_FOUND);
+    }
+    if (row.recurrence !== RECURRENCE.ONE_TIME) {
+        throw new AppError('Item is recurring; a specific occurrence start is required', ERRORS.INVALID_ITEM_DATA);
+    }
+    updateItemById(uid, id, { completed: completed ? 1 : 0 }, new Date().toISOString());
+}
+
+/**
+ * Set completion on a single occurrence of a RECURRING item (manual or iCal), keyed by the
+ * occurrence's absolute UTC start instant. The instant is validated against real expansion so
+ * a stale/bogus start is rejected loudly rather than writing a phantom completion row.
+ */
+export function setOccurrenceCompletion(uid: string, id: number, startISO: string, completed: boolean): void {
+    requireUser(uid);
+    const row = getItemById(uid, id);
+    if (!row) {
+        throw new AppError('Item not found', ERRORS.ITEM_NOT_FOUND);
+    }
+    const item = mapItemRowToItem(row);
+    if (item.recurrence !== RECURRENCE.RECURRING) {
+        throw new AppError('Item is not recurring; use one-time completion', ERRORS.INVALID_ITEM_DATA);
+    }
+    const target = new Date(startISO);
+    if (isNaN(target.getTime())) {
+        throw new AppError('Invalid occurrence start', ERRORS.INVALID_ITEM_DATA);
+    }
+
+    // Validate against a tight window bracketing the instant; expandItem's ±1-day naive widening
+    // ensures the occurrence is generated, and inWindow re-checks the exact instant.
+    const match = expandItem(item, new Date(target.getTime()), new Date(target.getTime() + 1))
+        .find((o) => new Date(o.start).getTime() === target.getTime());
+    if (!match) {
+        throw new AppError('No occurrence of this item at the given start', ERRORS.INVALID_ITEM_DATA);
+    }
+
+    if (completed) addCompletion(uid, id, match.start);
+    else removeCompletion(uid, id, match.start);
 }

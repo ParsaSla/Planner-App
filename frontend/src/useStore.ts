@@ -20,6 +20,11 @@ export interface Store {
   createItem: (input: ItemInput) => Promise<void>;
   updateItem: (id: string, input: ItemInput) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
+  /**
+   * Toggle completion. Omit `start` for a ONE_TIME item; pass the occurrence's start instant
+   * (ItemOccurrence.start) to tick a single RECURRING occurrence.
+   */
+  setCompletion: (id: string, completed: boolean, start?: string) => Promise<void>;
   createGroup: (input: GroupInput) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
 }
@@ -101,6 +106,7 @@ export function useStore(): Store {
     createItem: (input) => run(() => api.createItem(input))(),
     updateItem: (id, input) => run(() => api.updateItem(id, input))(),
     deleteItem: (id) => run(() => api.deleteItem(id))(),
+    setCompletion: (id, completed, start) => run(() => api.setCompletion(id, completed, start))(),
     createGroup: (input) => run(() => api.createGroup(input))(),
     deleteGroup: (id) => run(() => api.deleteGroup(id))(),
   };

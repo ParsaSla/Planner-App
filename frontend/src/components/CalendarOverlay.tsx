@@ -47,6 +47,26 @@ function editSource(store: Store, occ: ItemOccurrence, onEdit: (item: Item) => v
   if (src) onEdit(src);
 }
 
+/** Toggle completion for an occurrence (recurring occurrences carry their start instant). */
+function toggleOcc(store: Store, occ: ItemOccurrence) {
+  store.setCompletion(occ.id, !occ.completed, occ.recurrence === 'RECURRING' ? occ.start : undefined);
+}
+
+/** Small checkbox for a calendar event block; stops propagation so it doesn't open the editor. */
+function CalCheck({ store, occ }: { store: Store; occ: ItemOccurrence }) {
+  return (
+    <button
+      className="cal-check"
+      title={occ.completed ? 'Mark as not done' : 'Mark as done'}
+      aria-pressed={occ.completed}
+      onClick={(e) => {
+        e.stopPropagation();
+        toggleOcc(store, occ);
+      }}
+    />
+  );
+}
+
 export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
   const [view, setView] = useState<CalView>('week'); // week is the default
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
@@ -183,7 +203,7 @@ function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEd
                   return (
                     <div
                       key={i}
-                      className="ev"
+                      className={`ev${occ.completed ? ' done' : ''}`}
                       style={{ '--c': color, '--cc': softColor(color) } as CSSProperties}
                       onClick={() => editSource(store, occ, onEdit)}
                       title={occ.title}
@@ -326,11 +346,12 @@ function TimeGrid({
                     return (
                       <div
                         key={i}
-                        className="tg-ev allday"
+                        className={`tg-ev allday${occ.completed ? ' done' : ''}`}
                         style={{ '--c': color, '--cc': softColor(color) } as CSSProperties}
                         onClick={() => editSource(store, occ, onEdit)}
                         title={occ.title}
                       >
+                        <CalCheck store={store} occ={occ} />
                         <div className="et">{occ.title}</div>
                       </div>
                     );
@@ -347,7 +368,7 @@ function TimeGrid({
                   return (
                     <div
                       key={i}
-                      className="tg-ev"
+                      className={`tg-ev${lo.occ.completed ? ' done' : ''}`}
                       style={
                         {
                           top: lo.top,
@@ -361,6 +382,7 @@ function TimeGrid({
                       onClick={() => editSource(store, lo.occ, onEdit)}
                       title={lo.occ.title}
                     >
+                      <CalCheck store={store} occ={lo.occ} />
                       <div className="et">{lo.occ.title}</div>
                       <div className="es">
                         {formatTime(lo.start)} – {formatTime(lo.end)}

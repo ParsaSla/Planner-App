@@ -76,6 +76,15 @@ export const api = {
     await request(`/api/items/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 
+  // Toggle completion. Omit `start` for ONE_TIME items; pass the occurrence's start instant
+  // (ItemOccurrence.start) for a single RECURRING occurrence.
+  async setCompletion(id: string, completed: boolean, start?: string): Promise<void> {
+    await request(`/api/items/${encodeURIComponent(id)}/completion`, {
+      method: 'PATCH',
+      body: JSON.stringify(start === undefined ? { completed } : { completed, start }),
+    });
+  },
+
   // ---- Groups (a.k.a. Courses on the backend) ----
   async getGroups(): Promise<Group[]> {
     const data = await request<{ success: boolean; courses: Group[] }>('/api/courses');
