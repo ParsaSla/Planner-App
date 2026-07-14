@@ -38,6 +38,8 @@ const SAMPLE_ICS = [
     'BEGIN:VEVENT',
     'UID:marker@uni',
     'SUMMARY:Start of Term',
+    'DESCRIPTION:Calendar was last updated at 8:52PM on Tue 14-Jul-2026',
+    'COMMENT:Marker to show last update timestamp',
     'DTSTART:20260301T090000',
     'DTEND:20260301T090000',
     'END:VEVENT',
@@ -117,6 +119,14 @@ describe('backend/api/ical parseICSToEvents', () => {
         expect(marker!.rrule).toBeUndefined();
         expect(marker!.start).toBe(marker!.end); // zero-length: a single point in time
         expect(events.length).toBe(4); // lecture series + exam + chess + marker
+    });
+
+    it('suppresses course detection for update markers (no bogus code from the timestamp)', () => {
+        const events = parseICSToEvents(SAMPLE_ICS);
+        const marker = events.find(e => e.sourceUid === 'marker@uni')!;
+        // "14-Jul-2026" in the description must NOT be read as a course code (JUL2026).
+        expect(marker.detectedCode).toBeUndefined();
+        expect(marker.detectedName).toBeUndefined();
     });
 });
 

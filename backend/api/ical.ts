@@ -127,6 +127,17 @@ export function detectCourse(summary: string): { code?: string; name?: string } 
     return { code, name: name || code };
 }
 
+/**
+ * True for feed "marker" VEVENTs that carry a last-updated timestamp rather than a real
+ * class (e.g. UNSW's zero-length "Start of Term 2" whose COMMENT is "Marker to show last
+ * update timestamp" and whose DESCRIPTION is "Calendar was last updated at …"). We still
+ * import them as point-in-time events, but must not run course detection over them — the
+ * date in the description otherwise reads as a bogus course code ("14-Jul-2026" → JUL2026).
+ */
+function isUpdateMarker(comment: string, description?: string): boolean {
+    return /marker/i.test(comment) || /calendar was last updated/i.test(description ?? '');
+}
+
 /** A clean course name from a string: strip the code, then cut at the class type. */
 function refineName(source: string | undefined): string | undefined {
     if (!source) return undefined;
@@ -284,7 +295,12 @@ export function parseICSToEvents(ics: string): ParsedICalEvent[] {
         const summary = text(event.summary).trim();
         const description = text(event.description).trim() || undefined;
         const location = text(event.location).trim() || undefined;
-        const { code, name } = detectCourseFrom(summary, description);
+        const comment = text((event as { comment?: ParameterValue }).comment).trim();
+        // Update-marker events keep their summary as the title but skip course detection,
+        // so their timestamp description isn't mistaken for a course code.
+        const { code, name } = isUpdateMarker(comment, description)
+            ? {}
+            : detectCourseFrom(summary, description);
 
         const start = event.start;
         const end = event.end ?? event.start;
