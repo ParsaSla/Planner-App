@@ -41,11 +41,13 @@ export interface Item {
   description?: string;
   location?: string;
   recurrence: Recurrence;
-  start_date: string; // ISO-8601
-  end_date?: string; // ISO-8601
+  start_date: string; // ISO-8601 absolute UTC instant
+  end_date?: string; // ISO-8601 absolute UTC instant
   daysOfWeek?: Day[]; // RECURRING only
-  start_time?: TimeOfDay; // RECURRING only
-  end_time?: TimeOfDay; // RECURRING only
+  start_time?: TimeOfDay; // RECURRING only — wall-clock in `timezone`
+  end_time?: TimeOfDay; // RECURRING only — wall-clock in `timezone`
+  timezone?: string; // IANA TZID the wall-clock/recurrence is expressed in
+  allDay?: boolean;
 }
 
 /**
@@ -60,8 +62,9 @@ export interface ItemOccurrence {
   description?: string;
   location?: string;
   recurrence: Recurrence;
-  start: string; // ISO-8601 datetime
-  end: string; // ISO-8601 datetime
+  start: string; // ISO-8601 absolute UTC instant
+  end: string; // ISO-8601 absolute UTC instant
+  allDay?: boolean;
 }
 
 /** The one remaining discriminator on a raw item. */
@@ -81,6 +84,7 @@ export interface ItemInput {
   daysOfWeek?: Day[]; // RECURRING
   start_time?: TimeOfDay; // RECURRING
   end_time?: TimeOfDay; // RECURRING
+  timezone?: string; // IANA TZID the item's times are expressed in
 }
 
 export interface GroupInput {
@@ -96,8 +100,10 @@ export interface ParsedICalEvent {
   summary: string;
   description?: string;
   location?: string;
-  start: string; // ISO-8601
-  end: string; // ISO-8601
+  start: string; // ISO-8601 absolute UTC instant
+  end: string; // ISO-8601 absolute UTC instant
+  timezone?: string;
+  allDay?: boolean;
   detectedCode?: string;
   detectedName?: string;
 }
@@ -131,4 +137,13 @@ export interface ImportResult {
   createdCourses: number;
   importedEvents: number;
   skipped: number;
+}
+
+/** A saved iCal/webcal subscription — mirrors backend/db/icals.ts IcalRow. */
+export interface Ical {
+  id: number;
+  url: string;
+  /** 1 = enabled, 0 = disabled. */
+  active: number;
+  last_imported: string; // ISO-8601
 }

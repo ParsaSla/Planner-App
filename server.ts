@@ -4,7 +4,7 @@ import {invalidateSession, validateSession, login, register} from './backend/aut
 import { initializeDB } from './backend/db/connection';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, createCourse, getCourses, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport } from './backend/API';
+import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, createCourse, getCourses, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport, addIcal, removeIcal, updateIcal, getIcal, getIcals } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -99,11 +99,11 @@ app.get("/dashboard/", (req, res) => {
 
 // create item, expects
 // { courseId?, recurrence, title, description?, location?, date?, start_date?, end_date?,
-//   frequency?, daysOfWeek?, start_time?, end_time? }
+//   frequency?, daysOfWeek?, start_time?, end_time?, timezone? }
 app.post("/api/items", (req, res) => {
-  const { courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time } = req.body;
+  const { courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time, timezone } = req.body;
   const UID = authenticate(req);
-  createItem(UID, courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time);
+  createItem(UID, courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time, timezone);
   res.status(201).json({ success: true });
 });
 
@@ -128,9 +128,9 @@ app.get("/api/items/occurrences", (req, res) => {
 
 // update item (both one-time and recurring), same body shape as create
 app.put("/api/items/:id", (req, res) => {
-  const { courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time } = req.body;
+  const { courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time, timezone } = req.body;
   const UID = authenticate(req);
-  updateItem(Number(req.params.id), UID, courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time);
+  updateItem(Number(req.params.id), UID, courseId, recurrence, title, description, location, date, start_date, end_date, frequency, daysOfWeek, start_time, end_time, timezone);
   res.status(200).json({ success: true });
 });
 
@@ -185,6 +185,42 @@ app.put("/api/settings", (req, res) => {
 /////////////////////////////
 // ICAL IMPORT ENDPOINTS    //
 /////////////////////////////
+
+// add new ical route
+app.post("/api/ical/", (req, res) => {
+  const { url } = req.body;
+  const UID = authenticate(req);
+  addIcal(UID, url);
+  res.status(200).json({ success: true, message: `iCal import initiated for URL: ${url}` });
+});
+
+app.delete("/api/ical/:icalId", (req, res) => {
+  const UID = authenticate(req);
+  const icalId = Number(req.params.icalId);
+  removeIcal(UID, icalId);
+  res.status(200).json({ success: true, message: `iCal subscription with ID ${icalId} deleted.` });
+});
+
+app.put("/api/ical/:icalId", (req, res) => {
+  const UID = authenticate(req);
+  const icalId = Number(req.params.icalId);
+  const updates = req.body; // Expecting { url?: string; active?: number }
+  updateIcal(UID, icalId, updates);
+  res.status(200).json({ success: true, message: `iCal subscription with ID ${icalId} updated.` });
+});
+
+app.get("/api/ical/:icalId", (req, res) => {
+  const UID = authenticate(req);
+  const icalId = Number(req.params.icalId);
+  const icalRow = getIcal(UID, icalId);
+  res.status(200).json({ success: true, ical: icalRow });
+});
+
+app.get("/api/ical", (req, res) => {
+  const UID = authenticate(req);
+  const icals = getIcals(UID);
+  res.status(200).json({ success: true, icals });
+});
 
 // preview an iCal import — fetch + parse + detect courses, persisting nothing.
 // expects { url }

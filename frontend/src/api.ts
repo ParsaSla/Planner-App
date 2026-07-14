@@ -8,6 +8,7 @@ import type {
   ImportResult,
   CourseDecision,
   ParsedICalEvent,
+  Ical,
 } from './types';
 import type { Settings } from './settings';
 
@@ -97,6 +98,23 @@ export const api = {
 
   async saveSettings(settings: Settings): Promise<void> {
     await request('/api/settings', { method: 'PUT', body: JSON.stringify(settings) });
+  },
+
+  // ---- iCal subscriptions ----
+  async getIcals(): Promise<Ical[]> {
+    const data = await request<{ success: boolean; icals: Ical[] }>('/api/ical');
+    return data.icals;
+  },
+
+  async updateIcal(id: number, updates: { url?: string; active?: number }): Promise<void> {
+    await request(`/api/ical/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async deleteIcal(id: number): Promise<void> {
+    await request(`/api/ical/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 
   // ---- iCal import ----

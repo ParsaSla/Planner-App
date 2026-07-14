@@ -54,11 +54,13 @@ function initializeSQLite(dbPath: string): void {
         -- either one-time or recurring. Two discriminator columns say which:
         --   kind       = 'TASK'  | 'EVENT'
         --   recurrence = 'ONE_TIME' | 'RECURRING'
-        -- ONE_TIME rows use date + start_time/end_time and completed.
+        -- ONE_TIME rows use start_date/end_date (absolute UTC instants) and completed.
         -- RECURRING rows are described by a single iCal RRULE in rrule (+ exdate/rdate),
-        -- anchored by start_date/start_time; an app-native weekly pattern is just
-        -- FREQ=WEEKLY;BYDAY=... Per-occurrence completion is tracked in the completions
-        -- table. EVENT rows carry an end; TASK rows leave it NULL.
+        -- anchored by start_date (UTC instant) + start_time (wall-clock time-of-day in
+        -- timezone); an app-native weekly pattern is just FREQ=WEEKLY;BYDAY=... Per-occurrence
+        -- completion is tracked in the completions table. EVENT rows carry an end; TASK rows
+        -- leave it NULL. Times are timezone-aware: start_date/end_date are true instants and
+        -- the timezone column records the IANA zone the recurrence/wall-clock is expressed in.
         --
         -- iCal import: one row per VEVENT series (recurring events keep their RRULE rather
         -- than being expanded). VEVENT property -> column mapping:
@@ -66,8 +68,8 @@ function initializeSQLite(dbPath: string): void {
         --   SUMMARY      -> title
         --   DESCRIPTION  -> description
         --   LOCATION     -> location
-        --   DTSTART      -> start_date (RRULE anchor) + start_time (its time-of-day); also date for ONE_TIME
-        --   DTEND        -> end_date   (occurrence duration) + end_time (its time-of-day)
+        --   DTSTART      -> start_date (UTC instant / RRULE anchor) + start_time (wall-clock time-of-day) + timezone (TZID)
+        --   DTEND        -> end_date   (UTC instant) + end_time (wall-clock time-of-day)
         --   RRULE        -> rrule
         --   EXDATE       -> exdate
         --   RDATE        -> rdate
@@ -91,11 +93,13 @@ function initializeSQLite(dbPath: string): void {
             title TEXT NOT NULL,                   -- iCal: VEVENT SUMMARY
             description TEXT,                       -- iCal: VEVENT DESCRIPTION
             location TEXT,                          -- iCal: VEVENT LOCATION
-            start_date TEXT,                       -- ONE_TIME: task due datetime / event start (ISO-8601). iCal: DTSTART (RRULE anchor)
-            end_date TEXT,                         -- ONE_TIME event end (ISO-8601); NULL for tasks. iCal: DTEND
+            start_date TEXT,                       -- Absolute UTC instant (ISO-8601 '…Z'). ONE_TIME: event start / task due. iCal + RECURRING: DTSTART / RRULE anchor
+            end_date TEXT,                         -- Absolute UTC instant (ISO-8601 '…Z'); NULL for tasks / open-ended series. iCal: DTEND
             completed INTEGER,                     -- ONE_TIME only
-            start_time TEXT,                        -- RECURRING: ISO time string (HH:mm:ss). iCal: time-of-day of DTSTART
-            end_time TEXT,                          -- RECURRING: ISO time string (HH:mm:ss). iCal: time-of-day of DTEND
+            start_time TEXT,                        -- RECURRING: wall-clock time-of-day (HH:mm:ss) in the item's timezone — the recurrence anchor's local time
+            end_time TEXT,                          -- RECURRING: wall-clock time-of-day (HH:mm:ss) in the item's timezone
+            timezone TEXT,                          -- IANA TZID the wall-clock times/recurrence are expressed in; NULL = floating/UTC
+            all_day INTEGER,                        -- 1 = all-day (date-only) event; NULL/0 = timed
             source_uid INTEGER REFERENCES icals(id) ON DELETE CASCADE,  -- iCal subscription id (icals.id, not a VEVENT field); NULL for manual rows
             ical_uid TEXT,                          -- iCal: VEVENT UID (stable identity within a subscription); NULL for manual rows
             rrule TEXT,                             -- RECURRING: the recurrence rule (app-native weekly = FREQ=WEEKLY;BYDAY=...; iCal = VEVENT RRULE); NULL for ONE_TIME
@@ -151,6 +155,8 @@ function migrateItemsColumns(db: Database.Database): void {
         rrule: 'TEXT',
         exdate: 'TEXT',
         rdate: 'TEXT',
+        timezone: 'TEXT',
+        all_day: 'INTEGER',
     };
     for (const [name, type] of Object.entries(additions)) {
         if (!existing.has(name)) {

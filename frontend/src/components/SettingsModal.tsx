@@ -3,7 +3,7 @@ import type { SettingsStore, TermDate, TermPeriod, TermSystem, UniversitySetting
 import { EMPTY_TERM_PERIOD, termCount } from '../settings';
 import type { Store } from '../useStore';
 import { api } from '../api';
-import type { ImportPreview, ImportResult } from '../types';
+import type { Ical, ImportPreview, ImportResult } from '../types';
 
 interface Props {
   settings: SettingsStore;
@@ -60,7 +60,7 @@ export default function SettingsModal({ settings, store, onClose }: Props) {
               <UniversityTab settings={settings} onClose={onClose} />
             )}
             {tab === 'timetable' && (
-              <TimetableTab settings={settings} store={store} onClose={onClose} />
+              <TimetableTab store={store} onClose={onClose} />
             )}
           </div>
         </div>
@@ -212,21 +212,74 @@ interface DecisionState {
   courseId: string;
 }
 
+/** Show the host + a little of the path so long subscription URLs stay readable. */
+function prettyUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    const tail = u.pathname.length > 1 ? u.pathname : '';
+    return `${u.host}${tail}`.replace(/\/$/, '') || raw;
+  } catch {
+    return raw;
+  }
+}
+
 function TimetableTab({
-  settings,
   store,
   onClose,
 }: {
-  settings: SettingsStore;
   store: Store;
   onClose: () => void;
 }) {
-  const [url, setUrl] = useState(settings.settings.icalUrl ?? '');
+  const [icals, setIcals] = useState<Ical[]>([]);
+  const [icalsLoading, setIcalsLoading] = useState(true);
+
+  const [url, setUrl] = useState('');
   const [phase, setPhase] = useState<'idle' | 'loading' | 'review' | 'importing'>('idle');
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+
+  async function refreshIcals() {
+    try {
+      setIcals(await api.getIcals());
+    } catch {
+      /* Non-fatal: the add/import flow still works without the list. */
+    } finally {
+      setIcalsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshIcals();
+  }, []);
+
+  // Enable/disable a subscription. Optimistic — revert the toggle if the save fails.
+  async function toggleActive(ical: Ical) {
+    const active = ical.active ? 0 : 1;
+    setIcals((cur) => cur.map((x) => (x.id === ical.id ? { ...x, active } : x)));
+    try {
+      await api.updateIcal(ical.id, { active });
+    } catch (e) {
+      setIcals((cur) => cur.map((x) => (x.id === ical.id ? { ...x, active: ical.active } : x)));
+      setError(e instanceof Error ? e.message : 'Could not update that subscription.');
+    }
+  }
+
+  // Removing a subscription cascade-deletes its imported events, so reload the store.
+  async function removeIcal(ical: Ical) {
+    if (!window.confirm(`Remove this timetable and all its imported events?\n\n${prettyUrl(ical.url)}`)) {
+      return;
+    }
+    setError(null);
+    try {
+      await api.deleteIcal(ical.id);
+      await refreshIcals();
+      await store.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not remove that subscription.');
+    }
+  }
 
   async function handlePreview() {
     setError(null);
@@ -273,8 +326,10 @@ function TimetableTab({
       }));
       const res = await api.commitICalImport({ url: url.trim(), courseDecisions, events: preview.events });
       await store.reload();
+      await refreshIcals();
       setResult(res);
       setPreview(null);
+      setUrl('');
       setPhase('idle');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import failed.');
@@ -292,7 +347,51 @@ function TimetableTab({
     <>
       <div className="settings-pane">
         <div className="field">
-          <label>Timetable iCal link</label>
+          <label>Your timetables</label>
+          {icalsLoading ? (
+            <p className="field-hint">Loading…</p>
+          ) : icals.length === 0 ? (
+            <p className="field-hint">No timetables yet — add one below.</p>
+          ) : (
+            <div className="ical-list">
+              {icals.map((ic) => (
+                <div className={`ical-item ${ic.active ? '' : 'off'}`} key={ic.id}>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!!ic.active}
+                    className={`switch ${ic.active ? 'on' : ''}`}
+                    onClick={() => toggleActive(ic)}
+                    title={ic.active ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                  >
+                    <span className="knob" />
+                  </button>
+                  <div className="ical-meta">
+                    <span className="ical-url" title={ic.url}>
+                      {prettyUrl(ic.url)}
+                    </span>
+                    <span className="ical-sub">{ic.active ? 'Enabled' : 'Disabled'}</span>
+                  </div>
+                  <button
+                    className="ical-del"
+                    onClick={() => removeIcal(ic)}
+                    aria-label="Remove timetable"
+                    title="Remove timetable"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="field-hint">
+            Disabled timetables stay saved but their classes are hidden. Removing one deletes its
+            imported events.
+          </p>
+        </div>
+
+        <div className="field">
+          <label>Add a timetable</label>
           <input
             type="url"
             value={url}

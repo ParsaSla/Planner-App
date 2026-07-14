@@ -109,9 +109,10 @@ export default function CreateModal({ store, initial, editingItem, onClose }: Pr
             description: description.trim() || undefined,
             location: location.trim() || undefined,
             // Resolve the naked datetime-local against the browser's zone into an absolute
-            // instant, so storage doesn't depend on the server's timezone.
+            // instant, and record that zone so it renders consistently everywhere.
             start_date: new Date(startAt).toISOString(),
             end_date: new Date(endAt).toISOString(),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             courseId: groupId || undefined,
           };
         } else {
@@ -132,6 +133,7 @@ export default function CreateModal({ store, initial, editingItem, onClose }: Pr
             end_time: { hour: eh, minute: em },
             start_date: seriesStart,
             end_date: seriesEnd || undefined,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             courseId: groupId || undefined,
           };
         }

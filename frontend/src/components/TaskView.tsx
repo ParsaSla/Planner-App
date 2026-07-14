@@ -7,9 +7,10 @@ import {
   dayKey,
   formatDaysList,
   formatTime,
+  formatTimeHM,
   longDate,
+  occurrenceDay,
   relativeDay,
-  seriesInstant,
   startOfDay,
 } from '../util';
 import TaskRow from './TaskRow';
@@ -52,10 +53,13 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
     const color = store.groupColor(t.courseId);
     const groupName = store.groupById(t.courseId)?.name;
     if (isRecurring(t)) {
+      // Recurring series show their own wall-clock time-of-day (in the item's zone), not a
+      // viewer-local conversion — a 9am class reads "9:00 AM" everywhere.
       const when =
         t.start_time && t.end_time
-          ? `${formatTime(seriesInstant(t.start_date, t.start_time))}–${formatTime(
-              seriesInstant(t.start_date, t.end_time)
+          ? `${formatTimeHM(t.start_time.hour, t.start_time.minute)}–${formatTimeHM(
+              t.end_time.hour,
+              t.end_time.minute
             )}`
           : undefined;
       return (
@@ -74,13 +78,16 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
     }
     const start = new Date(t.start_date);
     const end = t.end_date ? new Date(t.end_date) : undefined;
+    const when = t.allDay
+      ? `${relativeDay(occurrenceDay(t.start_date, true))} · All day`
+      : `${relativeDay(start)} · ${formatTime(start)}${end ? `–${formatTime(end)}` : ''}`;
     return (
       <TaskRow
         key={t.id}
         title={t.title}
         color={color}
         groupName={groupName}
-        when={`${relativeDay(start)} · ${formatTime(start)}${end ? `–${formatTime(end)}` : ''}`}
+        when={when}
         location={t.location}
         onEdit={() => onEdit(t)}
         onDelete={() => del(t)}
@@ -105,7 +112,7 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
   if (isToday) {
     const todayKey = dayKey(new Date());
     const occ = store.occurrences
-      .filter((o) => dayKey(new Date(o.start)) === todayKey)
+      .filter((o) => dayKey(occurrenceDay(o.start, o.allDay)) === todayKey)
       .filter((o) => matches(o));
     return (
       <main className="main">
@@ -120,7 +127,9 @@ export default function TaskView({ store, selection, query, onEdit }: Props) {
           : occ.map((o, i) => {
               const start = new Date(o.start);
               const end = new Date(o.end);
-              const when = `${formatTime(start)}${isNaN(end.getTime()) ? '' : `–${formatTime(end)}`}`;
+              const when = o.allDay
+                ? 'All day'
+                : `${formatTime(start)}${isNaN(end.getTime()) ? '' : `–${formatTime(end)}`}`;
               return (
                 <TaskRow
                   key={`${o.id}-${i}`}
@@ -274,7 +283,7 @@ function ByDate({ items, itemRow }: { items: Item[]; itemRow: (t: Item) => JSX.E
       buckets[4].items.push(t);
       continue;
     }
-    const d = startOfDay(new Date(t.start_date));
+    const d = occurrenceDay(t.start_date, t.allDay);
     const k = dayKey(d);
     if (k === todayK) buckets[1].items.push(t);
     else if (d.getTime() < startOfDay(new Date()).getTime()) buckets[0].items.push(t);

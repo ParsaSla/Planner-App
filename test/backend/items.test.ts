@@ -147,4 +147,51 @@ describe('backend/api/items getItemOccurrences', () => {
       '2026-07-27T09:00:00.000Z',
     ]);
   });
+
+  it('expands a zoned weekly series correctly across a DST transition (wall-clock stays fixed)', () => {
+    const uid = register('occtz', 'Password123');
+    // Weekly Monday 09:00–10:30 in Sydney, anchored 2026-03-30 (before AU DST ends 2026-04-05).
+    createItemRow({
+      uid, course_id: null, kind: 'EVENT', recurrence: 'RECURRING', title: 'Lecture',
+      description: null, location: null,
+      start_date: '2026-03-29T22:00:00.000Z', end_date: null, completed: null,
+      start_time: '09:00:00', end_time: '10:30:00',
+      timezone: 'Australia/Sydney', all_day: null,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO', exdate: null, rdate: null,
+      source_uid: null, ical_uid: null, created_at: new Date().toISOString(), updated_at: null,
+    });
+
+    const occ = getItemOccurrences(uid, '2026-03-29T00:00:00.000Z', '2026-04-14T00:00:00.000Z');
+    // The underlying instant shifts +11→+10 across the boundary, but each is 9am Sydney.
+    expect(occ.map(o => o.start)).toEqual([
+      '2026-03-29T22:00:00.000Z', // Mar 30, +11
+      '2026-04-05T23:00:00.000Z', // Apr 6,  +10
+      '2026-04-12T23:00:00.000Z', // Apr 13, +10
+    ]);
+    expect(occ.map(o => o.end)).toEqual([
+      '2026-03-29T23:30:00.000Z',
+      '2026-04-06T00:30:00.000Z',
+      '2026-04-13T00:30:00.000Z',
+    ]);
+  });
+
+  it('spills an overnight recurring occurrence into the next day', () => {
+    const uid = register('occovernight', 'Password123');
+    // Weekly Monday 22:00 → 02:00 (ends after midnight) in Sydney.
+    createItemRow({
+      uid, course_id: null, kind: 'EVENT', recurrence: 'RECURRING', title: 'Night shift',
+      description: null, location: null,
+      start_date: '2026-03-30T11:00:00.000Z', end_date: null, completed: null,
+      start_time: '22:00:00', end_time: '02:00:00',
+      timezone: 'Australia/Sydney', all_day: null,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO', exdate: null, rdate: null,
+      source_uid: null, ical_uid: null, created_at: new Date().toISOString(), updated_at: null,
+    });
+
+    const occ = getItemOccurrences(uid, '2026-03-30T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+    expect(occ).toHaveLength(1);
+    expect(occ[0].start).toBe('2026-03-30T11:00:00.000Z'); // Mon 22:00 Sydney
+    expect(occ[0].end).toBe('2026-03-30T15:00:00.000Z');   // Tue 02:00 Sydney — end after start
+    expect(new Date(occ[0].end).getTime()).toBeGreaterThan(new Date(occ[0].start).getTime());
+  });
 });

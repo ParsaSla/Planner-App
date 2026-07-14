@@ -8,6 +8,7 @@ import {
   formatTime,
   isToday,
   longDate,
+  occurrenceDay,
   softColor,
   startOfDay,
   startOfMonth,
@@ -140,7 +141,7 @@ function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEd
   const weeks = useMemo(() => {
     const byDay = new Map<string, ItemOccurrence[]>();
     for (const occ of store.occurrences) {
-      const key = dayKey(new Date(occ.start));
+      const key = dayKey(occurrenceDay(occ.start, occ.allDay));
       const arr = byDay.get(key) ?? [];
       arr.push(occ);
       byDay.set(key, arr);
@@ -187,7 +188,7 @@ function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEd
                       onClick={() => editSource(store, occ, onEdit)}
                       title={occ.title}
                     >
-                      {`${formatTime(new Date(occ.start))} `}
+                      {occ.allDay ? '' : `${formatTime(new Date(occ.start))} `}
                       {occ.title}
                     </div>
                   );
@@ -278,8 +279,10 @@ function TimeGrid({
     return Array.from({ length: n }, (_, i) => {
       const date = addDays(start, i);
       const key = dayKey(date);
-      const dayOccs = store.occurrences.filter((o) => dayKey(new Date(o.start)) === key);
-      return { date, timed: layoutDay(dayOccs) };
+      const dayOccs = store.occurrences.filter((o) => dayKey(occurrenceDay(o.start, o.allDay)) === key);
+      const allDay = dayOccs.filter((o) => o.allDay);
+      const timed = layoutDay(dayOccs.filter((o) => !o.allDay));
+      return { date, timed, allDay };
     });
   }, [store.occurrences, anchor, view]);
 
@@ -315,6 +318,25 @@ function TimeGrid({
                 </div>
                 <div className="n">{col.date.getDate()}</div>
               </div>
+
+              {col.allDay.length > 0 && (
+                <div className="tg-allday">
+                  {col.allDay.map((occ, i) => {
+                    const color = store.groupColor(occ.courseId);
+                    return (
+                      <div
+                        key={i}
+                        className="tg-ev allday"
+                        style={{ '--c': color, '--cc': softColor(color) } as CSSProperties}
+                        onClick={() => editSource(store, occ, onEdit)}
+                        title={occ.title}
+                      >
+                        <div className="et">{occ.title}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div style={{ position: 'relative' }}>
                 {HOURS.map((h) => (

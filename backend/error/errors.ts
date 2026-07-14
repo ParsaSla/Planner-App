@@ -15,6 +15,7 @@ export const ERRORS = {
     INVALID_ICAL_DATA: 'INVALID_ICAL_DATA',
     ICAL_FETCH_FAILED: 'ICAL_FETCH_FAILED',
     ICAL_PARSE_FAILED: 'ICAL_PARSE_FAILED',
+    ICAL_ALREADY_EXISTS: 'ICAL_ALREADY_EXISTS',
 };
 export type ErrorType = typeof ERRORS[keyof typeof ERRORS];
 
@@ -43,6 +44,7 @@ const HttpMap = {
     [ERRORS.INVALID_ICAL_DATA]: 400,
     [ERRORS.ICAL_FETCH_FAILED]: 502,
     [ERRORS.ICAL_PARSE_FAILED]: 422,
+    [ERRORS.ICAL_ALREADY_EXISTS]: 409,
 };
 
 export function getStatusCode(appError: AppError): number {

@@ -1,12 +1,13 @@
 import * as nodeIcal from 'node-ical';
 import type { ParameterValue, VEvent } from 'node-ical';
+import { DateTime } from 'luxon';
 
 import AppError from '../error/appError';
 import { ERRORS } from '../error/errors';
 import { getSQLiteDB } from '../db/connection';
 import { getCoursesByUID, createCourseRow } from '../db/courses';
 import { createItemRow, getItemsBySourceUid, updateItemById, ItemRow } from '../db/items';
-import { getIcalsByUID, createIcalRow, updateIcalById } from '../db/icals';
+import { getIcalsByUID, createIcalRow, updateIcalById, getIcalById, deleteIcalById, IcalRow } from '../db/icals';
 import { requireUser } from './helpers';
 
 // ---------------------------------------------------------------------------
@@ -26,8 +27,12 @@ export interface ParsedICalEvent {
     summary: string;
     description?: string;
     location?: string;
-    start: string; // ISO-8601
-    end: string; // ISO-8601
+    start: string; // ISO-8601 — absolute UTC instant
+    end: string; // ISO-8601 — absolute UTC instant
+    /** IANA TZID the event's wall-clock/recurrence is expressed in; absent for floating/UTC. */
+    timezone?: string;
+    /** True for a date-only (all-day) VEVENT (DTSTART;VALUE=DATE). */
+    allDay?: boolean;
     /** Course code detected in the summary/description, e.g. "COMP1010". */
     detectedCode?: string;
     /** Human-friendly course name, used as a default when creating the course. */
@@ -47,6 +52,61 @@ const COURSE_CODE_RE = /\b([A-Za-z]{2,4})\s?-?\s?(\d{3,4}[A-Za-z]?)\b/;
 // ("MATH1081 Discrete Mathematics Lecture A"); we cut the name before them.
 const CLASS_TYPE_RE =
     /\b(lecture|tutorial|workshop|seminar|laborator(?:y|ies)|lab|practical|exam(?:ination)?|class|studio|consultation|drop[- ]?in|meeting)\b/i;
+
+// ---------------------------------------------------------------------------
+// Create/update/delete iCal subscriptions
+// ---------------------------------------------------------------------------
+export function addIcal(UID: string, url: string): number {
+    requireUser(UID);
+    const trimmedUrl = requireIcalUrl(url);
+
+    const existing = getIcalsByUID(UID).find(i => i.url === trimmedUrl);
+    if (existing) {
+        throw new AppError('This iCal subscription already exists', ERRORS.ICAL_ALREADY_EXISTS);
+    }
+
+    return createIcalRow({ uid: UID, url: trimmedUrl, active: 1, last_imported: new Date().toISOString() });
+}
+
+export function removeIcal(UID: string, icalId: number): void {
+    requireUser(UID);
+    const existing = getIcalById(UID, icalId);
+    if (!existing) {
+        throw new AppError('That iCal subscription does not exist', ERRORS.INVALID_ICAL_DATA);
+    }
+
+    deleteIcalById(UID, icalId);
+}
+
+export function updateIcal(UID: string, icalId: number, updates: { url?: string; active?: number }): void {
+    requireUser(UID);
+    const existing = getIcalById(UID, icalId);
+    if (!existing) {
+        throw new AppError('That iCal subscription does not exist', ERRORS.INVALID_ICAL_DATA);
+    }
+
+    const normalizedUpdates: { url?: string; active?: number } = {};
+    if (updates.url !== undefined) {
+        normalizedUpdates.url = requireIcalUrl(updates.url);
+    }
+    if (updates.active !== undefined) {
+        normalizedUpdates.active = updates.active;
+    }
+
+    updateIcalById(UID, icalId, normalizedUpdates);
+}
+
+export function getIcals(UID: string): IcalRow[] {
+    return getIcalsByUID(UID);
+}
+
+export function getIcal(UID: string, icalId: number): IcalRow {
+    const existing = getIcalById(UID, icalId);
+    if (!existing) {
+        throw new AppError('That iCal subscription does not exist', ERRORS.INVALID_ICAL_DATA);
+    }
+    return existing;
+}
 
 /** Extract a course code and a friendly name from an event summary. */
 export function detectCourse(summary: string): { code?: string; name?: string } {
@@ -150,17 +210,50 @@ function extractRRule(rrule: { toString(): string }): string | undefined {
     return value || undefined;
 }
 
+type ZonedDate = Date & { tz?: string; dateOnly?: boolean };
+
 /**
- * Flatten node-ical's date-keyed map (EXDATE/RDATE) into a de-duplicated list of ISO
- * strings. node-ical often stores the same exclusion under multiple keys (a date-only
- * key and a full-datetime key), so collapse by resolved instant.
+ * Resolve an iCal date to an absolute UTC instant plus the IANA zone it is expressed in.
+ * node-ical resolves DTSTART/DTEND/EXDATE to an absolute instant, tagging zoned values with
+ * their source zone (`.tz`) and date-only values with `.dateOnly`; floating and all-day
+ * values carry no zone and are built in server-local time.
+ *
+ * - Zoned (TZID) events: node-ical already has the correct absolute instant — keep it, and
+ *   record the zone so recurrence and wall-clock stay correct across DST.
+ * - Floating / all-day events: no real zone. Re-stamp the server-local wall-clock components
+ *   as UTC so the nominal clock time (and an all-day event's calendar date) survive regardless
+ *   of the server's timezone; record no zone (expanded as UTC).
+ */
+function resolveInstant(date: Date): { iso: string; tz?: string } {
+    const tz = (date as ZonedDate).tz || undefined;
+    if (tz) return { iso: date.toISOString(), tz };
+    // No zone: re-stamp local wall-clock as UTC (server-zone-independent, keeps the calendar date).
+    return {
+        iso: new Date(
+            Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds())
+        ).toISOString(),
+        tz: undefined,
+    };
+}
+
+/** Wall-clock time-of-day ("HH:mm:ss") of an instant, read in its own zone (UTC when floating). */
+function wallTimeOfDay(iso: string, tz: string | undefined): string {
+    if (tz) return DateTime.fromISO(iso, { zone: 'utc' }).setZone(tz).toFormat('HH:mm:ss');
+    return iso.slice(11, 19);
+}
+
+/**
+ * Flatten node-ical's date-keyed map (EXDATE/RDATE) into a de-duplicated list of absolute UTC
+ * instants. node-ical often stores the same exclusion under multiple keys (a date-only key and
+ * a full-datetime key), so collapse by resolved value. Each entry is resolved on the same basis
+ * as the series' start (see resolveInstant), so day-level exclusion matching at read time lines up.
  */
 function collectDates(map: Record<string, Date> | undefined): string[] | undefined {
     if (!map) return undefined;
     const seen = new Set<string>();
     for (const value of Object.values(map)) {
         const date = value instanceof Date ? value : new Date(value as unknown as string);
-        if (!isNaN(date.getTime())) seen.add(date.toISOString());
+        if (!isNaN(date.getTime())) seen.add(resolveInstant(date).iso);
     }
     return seen.size ? [...seen] : undefined;
 }
@@ -196,18 +289,23 @@ export function parseICSToEvents(ics: string): ParsedICalEvent[] {
         const start = event.start;
         const end = event.end ?? event.start;
         const rrule = event.rrule ? extractRRule(event.rrule) : undefined;
+        const allDay = (start as ZonedDate).dateOnly === true;
 
-        // Drop zero-length markers ("Start of Term 2" etc.) — but only for non-recurring
-        // events; a recurring rule anchored at an instant is still a real series.
-        if (!rrule && start.getTime() === end.getTime()) continue;
+        // Drop zero-length markers ("Start of Term 2" etc.) — but only for non-recurring,
+        // non-all-day events; a recurring rule or an all-day date is still a real event.
+        if (!rrule && !allDay && start.getTime() === end.getTime()) continue;
 
+        const resolvedStart = resolveInstant(start);
+        const resolvedEnd = resolveInstant(end);
         events.push({
             sourceUid: String(event.uid ?? key),
             summary,
             description,
             location,
-            start: start.toISOString(),
-            end: end.toISOString(),
+            start: resolvedStart.iso,
+            end: resolvedEnd.iso,
+            timezone: resolvedStart.tz,
+            allDay: allDay || undefined,
             detectedCode: code,
             detectedName: name,
             rrule,
@@ -268,9 +366,6 @@ export interface ImportResult {
 
 const groupingKey = (ev: ParsedICalEvent): string => ev.detectedCode || UNCATEGORISED_KEY;
 const eventTitle = (ev: ParsedICalEvent): string => ev.summary?.trim() || 'Untitled';
-// Time-of-day ("HH:mm:ss") sliced from an ISO-8601 datetime, matching how the items
-// layer stores start_time/end_time.
-const isoTimeOfDay = (iso: string): string => iso.slice(11, 19);
 
 /** Validate the incoming URL and return its trimmed form. */
 function requireIcalUrl(url: string): string {
@@ -296,8 +391,10 @@ function itemFieldsFromEvent(ev: ParsedICalEvent, courseId: number | null) {
         start_date: ev.start,
         end_date: ev.end,
         completed: isRecurring ? null : 0,
-        start_time: isoTimeOfDay(ev.start),
-        end_time: isoTimeOfDay(ev.end),
+        start_time: wallTimeOfDay(ev.start, ev.timezone),
+        end_time: wallTimeOfDay(ev.end, ev.timezone),
+        timezone: ev.timezone ?? null,
+        all_day: ev.allDay ? 1 : null,
         rrule: ev.rrule ?? null,
         exdate: ev.exdate ? JSON.stringify(ev.exdate) : null,
         rdate: ev.rdate ? JSON.stringify(ev.rdate) : null,

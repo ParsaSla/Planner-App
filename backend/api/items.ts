@@ -1,4 +1,5 @@
 import { RRule } from 'rrule';
+import { DateTime } from 'luxon';
 import { TimeOfDay, DAY, assertDaysType, assertTimeOfDayType } from '../types/GeneralTypes';
 import AppError from '../error/appError';
 import { ERRORS } from '../error/errors';
@@ -17,6 +18,10 @@ interface ItemBase {
     title: string;
     description?: string;
     location?: string;
+    // IANA TZID the wall-clock times / recurrence are expressed in; absent = floating/UTC.
+    timezone?: string;
+    // True for a date-only (all-day) event.
+    allDay?: boolean;
     source_uid?: number;             // icals.id when imported from a subscription
     ical_uid?: string;               // source VEVENT UID; present only on iCal-imported rows
     created_at: string;
@@ -26,7 +31,7 @@ interface ItemBase {
 interface OneTimeItem extends ItemBase {
     recurrence: 'ONE_TIME';
     start_date: string;
-    end_date: string;            
+    end_date: string;
     completed: boolean;
 }
 
@@ -105,6 +110,7 @@ export function createItem(
     daysOfWeek: DAY[],
     start_time: TimeOfDay,
     end_time: TimeOfDay,
+    timezone?: string,
 ): void {
     requireUser(uid);
     if (courseID !== undefined && getCourseById(uid, courseID) === null) {
@@ -114,6 +120,8 @@ export function createItem(
     } else if (!title || !title.trim()) {
         throw new AppError('Item title is required', ERRORS.INVALID_ITEM_DATA);
     }
+
+    const tz = timezone || null;
 
     if (recurrence === RECURRENCE.ONE_TIME) {
         const startDateObj = new Date(start_date);
@@ -135,6 +143,8 @@ export function createItem(
             completed: 0,
             start_time: null,
             end_time: null,
+            timezone: tz,
+            all_day: null,
             source_uid: null,
             ical_uid: null,
             rrule: null,
@@ -176,6 +186,8 @@ export function createItem(
             completed: null,
             start_time: `${start_time.hour.toString().padStart(2, '0')}:${start_time.minute.toString().padStart(2, '0')}:00`,
             end_time: `${end_time.hour.toString().padStart(2, '0')}:${end_time.minute.toString().padStart(2, '0')}:00`,
+            timezone: tz,
+            all_day: null,
             rrule: daysToRRule(daysOfWeek, endObj ? endObj.toISOString() : null),
             exdate: null,
             rdate: null,
@@ -206,6 +218,8 @@ function mapItemRowToItem(itemRow: ItemRow): Item {
         title: itemRow.title,
         description: itemRow.description ?? undefined,
         location: itemRow.location ?? undefined,
+        timezone: itemRow.timezone ?? undefined,
+        allDay: itemRow.all_day === 1 ? true : undefined,
         source_uid: itemRow.source_uid !== null ? itemRow.source_uid : undefined,
         ical_uid: itemRow.ical_uid ?? undefined,
         created_at: itemRow.created_at,
@@ -273,6 +287,7 @@ export function updateItem(
     daysOfWeek: DAY[],
     start_time: TimeOfDay,
     end_time: TimeOfDay,
+    timezone?: string,
 ): void {
     requireUser(uid);
     if (courseID !== undefined && getCourseById(uid, courseID) === null) {
@@ -283,6 +298,7 @@ export function updateItem(
         throw new AppError('Item title is required', ERRORS.INVALID_ITEM_DATA);
     }
 
+    const tz = timezone || null;
     let updates: ItemUpdate = {};
 
     if (recurrence === RECURRENCE.ONE_TIME) {
@@ -300,6 +316,8 @@ export function updateItem(
             location: location ?? null,
             start_date: startDateObj.toISOString(),
             end_date: endDateObj.toISOString(),
+            timezone: tz,
+            all_day: null,
             rrule: null,
             start_time: null,
             end_time: null,
@@ -328,6 +346,8 @@ export function updateItem(
             location: location ?? null,
             start_date: startDateObj.toISOString(),
             end_date: endDateObj ? endDateObj.toISOString() : null,
+            timezone: tz,
+            all_day: null,
             rrule: daysToRRule(daysOfWeek, endDateObj ? endDateObj.toISOString() : null),
             start_time: `${start_time.hour.toString().padStart(2, '0')}:${start_time.minute.toString().padStart(2, '0')}:00`,
             end_time: `${end_time.hour.toString().padStart(2, '0')}:${end_time.minute.toString().padStart(2, '0')}:00`,
@@ -357,40 +377,49 @@ export interface ItemOccurrence {
     description?: string;
     location?: string;
     recurrence: 'ONE_TIME' | 'RECURRING';
-    start: string;   // ISO-8601 datetime of this occurrence
-    end: string;     // ISO-8601 datetime of this occurrence
+    start: string;   // ISO-8601 absolute UTC instant of this occurrence
+    end: string;     // ISO-8601 absolute UTC instant of this occurrence
+    allDay?: boolean;
 }
+
+// Expansion is timezone-aware. Each item's wall-clock time-of-day and recurrence are expressed
+// in `item.timezone` (an IANA zone; UTC when absent). We generate recurrence occurrences on a
+// naive wall-clock basis, then convert each back to a true UTC instant *in that zone*, so a
+// weekly 9am class stays 9am local across a DST transition (its underlying instant shifts).
+
+const MINUTES = (t: TimeOfDay) => t.hour * 60 + t.minute;
+const ONE_DAY_MS = 86_400_000;
 
 /**
- * Build a UTC Date from a stored ISO date anchor and a time-of-day. Items are stored with
- * their date/time components in UTC (start_date via toISOString(), start_time as the UTC
- * HH:mm slice), so we reconstruct in UTC end-to-end to avoid a day/hour drift.
- *
- * Note: recurrence is expanded as UTC-floating. App-native items are always UTC, so this
- * is exact for them; iCal series pinned to a TZID that crosses a DST boundary can drift by
- * an hour within the window. Day-level EXDATE matching (below) keeps whole-day exclusions
- * (term breaks) correct regardless. Full TZID-aware expansion is a later follow-up.
+ * Reinterpret an instant's wall-clock (as seen in `zone`) as a *naive* Date whose UTC fields
+ * carry those wall-clock components. This is the basis RRULE expansion runs on.
  */
-function combineDateAndTime(isoDate: string, time: TimeOfDay): Date {
-    const d = new Date(isoDate);
-    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), time.hour, time.minute, 0));
+function toNaive(instant: Date | string, zone: string): Date {
+    const dt = (typeof instant === 'string' ? DateTime.fromISO(instant, { zone: 'utc' }) : DateTime.fromJSDate(instant, { zone: 'utc' })).setZone(zone);
+    return new Date(Date.UTC(dt.year, dt.month - 1, dt.day, dt.hour, dt.minute, dt.second));
 }
 
-/** Stamp a time-of-day onto the UTC calendar day of `base`. */
-function stampTime(base: Date, time: TimeOfDay): Date {
-    return new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), time.hour, time.minute, 0));
+/** Interpret a naive wall-clock Date (UTC fields) as a time in `zone` and return the true instant. */
+function fromNaive(naive: Date, zone: string): Date {
+    return DateTime.fromObject(
+        {
+            year: naive.getUTCFullYear(), month: naive.getUTCMonth() + 1, day: naive.getUTCDate(),
+            hour: naive.getUTCHours(), minute: naive.getUTCMinutes(), second: naive.getUTCSeconds(),
+        },
+        { zone }
+    ).toUTC().toJSDate();
 }
 
-/** UTC calendar-day key (YYYY-MM-DD) of an ISO datetime, for whole-day exclusion matching. */
-function utcDayKey(iso: string): string {
-    return iso.slice(0, 10);
+/** Naive wall-clock Date for `zone`-local calendar day of `naive` stamped with `time`. */
+function stampNaive(naive: Date, time: TimeOfDay): Date {
+    return new Date(Date.UTC(naive.getUTCFullYear(), naive.getUTCMonth(), naive.getUTCDate(), time.hour, time.minute, 0));
 }
 
 /**
  * Expand a user's items into concrete occurrences within the [from, to) window. One-time
  * items are included when their start falls in the window; recurring items are expanded
- * from their RRULE (honouring UNTIL), then EXDATE days are dropped and RDATE days added.
- * Results are sorted ascending by start.
+ * from their RRULE (honouring UNTIL) in the item's timezone, then EXDATE days are dropped
+ * and RDATE days added. Results are sorted ascending by start.
  */
 export function getItemOccurrences(UID: string, from: string, to: string): ItemOccurrence[] {
     requireUser(UID);
@@ -418,39 +447,53 @@ export function getItemOccurrences(UID: string, from: string, to: string): ItemO
 
         if (item.recurrence === RECURRENCE.ONE_TIME) {
             if (inWindow(new Date(item.start_date).getTime())) {
-                occurrences.push({ ...base, recurrence: 'ONE_TIME', start: item.start_date, end: item.end_date });
+                occurrences.push({ ...base, recurrence: 'ONE_TIME', start: item.start_date, end: item.end_date, allDay: item.allDay });
             }
             continue;
         }
 
-        // RECURRING — expand the RRULE across the window.
+        // RECURRING — expand the RRULE in the item's zone.
         if (!item.rrule) continue;
-        let dates: Date[];
+        const zone = item.timezone || 'utc';
+        const overnight = MINUTES(item.end_time) <= MINUTES(item.start_time);
+
+        // Generate naive occurrences: dtstart is the anchor's zone-local wall-clock date + start_time,
+        // and any UNTIL (a true UTC instant per RFC 5545) is reinterpreted onto the same naive basis.
+        let naiveDates: Date[];
         try {
             const options = RRule.parseString(item.rrule);
-            options.dtstart = combineDateAndTime(item.start_date, item.start_time);
-            dates = new RRule(options).between(fromDate, toDate, true);
+            const anchorNaive = toNaive(item.start_date, zone);
+            options.dtstart = stampNaive(anchorNaive, item.start_time);
+            if (options.until) options.until = toNaive(options.until, zone);
+            // Widen the query window by a day each side (in naive terms) so DST/offset shifts near the
+            // edges aren't clipped; the exact instant is re-checked with inWindow below.
+            const naiveFrom = new Date(toNaive(fromDate, zone).getTime() - ONE_DAY_MS);
+            const naiveTo = new Date(toNaive(toDate, zone).getTime() + ONE_DAY_MS);
+            naiveDates = new RRule(options).between(naiveFrom, naiveTo, true);
         } catch {
             // A malformed rule shouldn't sink the whole calendar — skip this series.
             continue;
         }
 
-        // Term breaks / holidays are excluded by whole day (robust to any TZID time drift);
-        // RDATE adds one-off dates the base rule doesn't cover.
-        const excludedDays = new Set((item.exdate ?? []).map(utcDayKey));
+        // Term breaks / holidays are excluded by whole zone-local day; RDATE adds one-off dates.
+        const excludedDays = new Set((item.exdate ?? []).map((d) => toNaive(d, zone).toISOString().slice(0, 10)));
         for (const rd of item.rdate ?? []) {
-            const t = new Date(rd).getTime();
-            if (!isNaN(t) && inWindow(t)) dates.push(new Date(t));
+            const t = new Date(rd);
+            if (!isNaN(t.getTime())) naiveDates.push(stampNaive(toNaive(t, zone), item.start_time));
         }
 
-        for (const occ of dates) {
-            if (!inWindow(occ.getTime())) continue;               // enforce exclusive `to`
-            if (excludedDays.has(occ.toISOString().slice(0, 10))) continue;
+        for (const occNaive of naiveDates) {
+            if (excludedDays.has(occNaive.toISOString().slice(0, 10))) continue;
+            const startInstant = fromNaive(occNaive, zone);
+            if (!inWindow(startInstant.getTime())) continue;      // enforce window on the true instant
+            const endNaive = stampNaive(occNaive, item.end_time);
+            if (overnight) endNaive.setUTCDate(endNaive.getUTCDate() + 1); // 22:00→02:00 spills to next day
             occurrences.push({
                 ...base,
                 recurrence: 'RECURRING',
-                start: stampTime(occ, item.start_time).toISOString(),
-                end: stampTime(occ, item.end_time).toISOString(),
+                start: startInstant.toISOString(),
+                end: fromNaive(endNaive, zone).toISOString(),
+                allDay: item.allDay,
             });
         }
     }

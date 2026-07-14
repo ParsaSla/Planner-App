@@ -47,26 +47,27 @@ export function sameDay(a: Date, b: Date): boolean {
 }
 
 /**
- * Parse a one-time task's stored date. The backend stores these as UTC midnight
- * ("YYYY-MM-DDT00:00:00.000Z"); we interpret by calendar day so the task lands
- * on the day the user picked regardless of the viewer's timezone.
+ * Parse a one-time item's stored date into a local Date on its own calendar day. Stored dates
+ * are absolute UTC instants; `new Date` renders them in the viewer's zone, from which we take
+ * the local calendar day so the item lands on the day it actually occurs for the viewer.
  */
 export function parseTaskDate(iso: string): Date {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return new Date(iso);
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return d;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 /**
- * The absolute instant of a recurring series' nominal time. `start_time`/`end_time` are
- * stored as a UTC time-of-day (bare "HH:mm"); combining them with the series' UTC anchor
- * date yields an instant that `formatTime` then renders in the viewer's local zone — so the
- * series list shows the same local time the calendar computes for each occurrence.
+ * The local Date for the calendar day an occurrence/item falls on. All-day events are zone-less
+ * (stored as UTC midnight of their date), so read their UTC day; timed events are true instants
+ * placed on the viewer's local day.
  */
-export function seriesInstant(anchorISO: string, time: { hour: number; minute: number }): Date {
-  const a = new Date(anchorISO);
-  if (isNaN(a.getTime())) return a;
-  return new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate(), time.hour, time.minute));
+export function occurrenceDay(iso: string, allDay?: boolean): Date {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return d;
+  return allDay
+    ? new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+    : new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 export function isToday(d: Date): boolean {

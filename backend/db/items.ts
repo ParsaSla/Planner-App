@@ -15,6 +15,8 @@ export interface ItemRow {
     completed: number | null;
     start_time: string | null;
     end_time: string | null;
+    timezone: string | null;     // IANA TZID for wall-clock/recurrence; NULL = floating/UTC
+    all_day: number | null;      // 1 = all-day (date-only) event; NULL/0 = timed
     source_uid: number | null;
     ical_uid: string | null;     // iCal source VEVENT UID; NULL for manual rows
     rrule: string | null;        // iCal RECURRING: raw RRULE value; NULL otherwise
@@ -36,6 +38,8 @@ const UPDATABLE_COLUMNS = [
     'completed',
     'start_time',
     'end_time',
+    'timezone',
+    'all_day',
     'rrule',
     'exdate',
     'rdate',
@@ -58,6 +62,8 @@ export function createItemRow(item: {
     completed?: number | null;
     start_time?: string | null;
     end_time?: string | null;
+    timezone?: string | null;
+    all_day?: number | null;
     source_uid?: number | null;
     ical_uid?: string | null;
     rrule?: string | null;
@@ -68,8 +74,8 @@ export function createItemRow(item: {
 }): number {
     const db = getSQLiteDB();
     const info = db.prepare(
-        `INSERT INTO items (uid, course_id, kind, recurrence, title, description, location, start_date, end_date, completed, start_time, end_time, source_uid, ical_uid, rrule, exdate, rdate, created_at, updated_at)
-         VALUES (@uid, @course_id, @kind, @recurrence, @title, @description, @location, @start_date, @end_date, @completed, @start_time, @end_time, @source_uid, @ical_uid, @rrule, @exdate, @rdate, @created_at, @updated_at)`
+        `INSERT INTO items (uid, course_id, kind, recurrence, title, description, location, start_date, end_date, completed, start_time, end_time, timezone, all_day, source_uid, ical_uid, rrule, exdate, rdate, created_at, updated_at)
+         VALUES (@uid, @course_id, @kind, @recurrence, @title, @description, @location, @start_date, @end_date, @completed, @start_time, @end_time, @timezone, @all_day, @source_uid, @ical_uid, @rrule, @exdate, @rdate, @created_at, @updated_at)`
     ).run({
         ...item,
         course_id: item.course_id ?? null,
@@ -80,6 +86,8 @@ export function createItemRow(item: {
         completed: item.completed ?? null,
         start_time: item.start_time ?? null,
         end_time: item.end_time ?? null,
+        timezone: item.timezone ?? null,
+        all_day: item.all_day ?? null,
         source_uid: item.source_uid ?? null,
         ical_uid: item.ical_uid ?? null,
         rrule: item.rrule ?? null,

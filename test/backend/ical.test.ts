@@ -117,6 +117,46 @@ describe('backend/api/ical parseICSToEvents', () => {
     });
 });
 
+// The app is timezone-aware: a zoned event is stored as its absolute UTC instant plus the
+// IANA zone it was authored in, so recurrence and wall-clock stay correct across DST. An
+// all-day (VALUE=DATE) event is zone-less and kept at UTC midnight of its calendar date.
+describe('backend/api/ical parseICSToEvents timezones', () => {
+    const TZ_ICS = [
+        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//t//EN',
+        'BEGIN:VEVENT', 'UID:tz@x', 'SUMMARY:TZ Lecture',
+        'DTSTART;TZID=Australia/Sydney:20260302T090000',
+        'DTEND;TZID=Australia/Sydney:20260302T103000',
+        'RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260330T090000Z',
+        'EXDATE;TZID=Australia/Sydney:20260309T090000',
+        'END:VEVENT',
+        'BEGIN:VEVENT', 'UID:allday@x', 'SUMMARY:Reading Week',
+        'DTSTART;VALUE=DATE:20260713', 'DTEND;VALUE=DATE:20260714',
+        'END:VEVENT',
+        'END:VCALENDAR',
+    ].join('\r\n');
+
+    const originalTZ = process.env.TZ;
+    beforeEach(() => { process.env.TZ = 'Australia/Sydney'; });
+    afterEach(() => { process.env.TZ = originalTZ; });
+
+    it('stores a zoned event as its absolute UTC instant plus its IANA zone', () => {
+        const lecture = parseICSToEvents(TZ_ICS).find(e => e.sourceUid === 'tz@x')!;
+        expect(lecture.start).toBe('2026-03-01T22:00:00.000Z'); // 9am Sydney (+11 DST) as a true instant
+        expect(lecture.end).toBe('2026-03-01T23:30:00.000Z');
+        expect(lecture.timezone).toBe('Australia/Sydney');
+        // EXDATE resolved on the same absolute basis so day-level exclusion still matches.
+        expect(lecture.exdate).toEqual(['2026-03-08T22:00:00.000Z']);
+    });
+
+    it('keeps an all-day event zone-less at UTC midnight of its calendar date', () => {
+        const holiday = parseICSToEvents(TZ_ICS).find(e => e.sourceUid === 'allday@x')!;
+        expect(holiday.start).toBe('2026-07-13T00:00:00.000Z');
+        expect(holiday.end).toBe('2026-07-14T00:00:00.000Z');
+        expect(holiday.allDay).toBe(true);
+        expect(holiday.timezone).toBeUndefined();
+    });
+});
+
 describe('backend/api/ical commitICalImport', () => {
     beforeEach(() => {
         closeDB();
