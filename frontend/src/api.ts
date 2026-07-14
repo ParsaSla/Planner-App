@@ -126,6 +126,14 @@ export const api = {
     await request(`/api/ical/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 
+  async refreshIcal(id: number): Promise<ImportResult> {
+    const data = await request<{ success: boolean; result: ImportResult }>(
+      `/api/ical/${encodeURIComponent(id)}/refresh`,
+      { method: 'POST' }
+    );
+    return data.result;
+  },
+
   // ---- iCal import ----
   async previewICalImport(url: string): Promise<ImportPreview> {
     const data = await request<{ success: boolean; preview: ImportPreview }>('/api/ical/preview', {

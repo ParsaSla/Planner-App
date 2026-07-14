@@ -212,6 +212,21 @@ interface DecisionState {
   courseId: string;
 }
 
+/** A short "when" for a subscription's last import: "just now", "3 hours ago", or a date. */
+function lastRefreshedLabel(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const secs = Math.round((Date.now() - then) / 1000);
+  if (secs < 60) return 'just now';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} min${mins === 1 ? '' : 's'} ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 /** Show the host + a little of the path so long subscription URLs stay readable. */
 function prettyUrl(raw: string): string {
   try {
@@ -232,6 +247,7 @@ function TimetableTab({
 }) {
   const [icals, setIcals] = useState<Ical[]>([]);
   const [icalsLoading, setIcalsLoading] = useState(true);
+  const [refreshingId, setRefreshingId] = useState<number | null>(null);
 
   const [url, setUrl] = useState('');
   const [phase, setPhase] = useState<'idle' | 'loading' | 'review' | 'importing'>('idle');
@@ -263,6 +279,23 @@ function TimetableTab({
     } catch (e) {
       setIcals((cur) => cur.map((x) => (x.id === ical.id ? { ...x, active: ical.active } : x)));
       setError(e instanceof Error ? e.message : 'Could not update that subscription.');
+    }
+  }
+
+  // Re-pull a subscription's feed and sync its events (no review step), then reload.
+  async function refreshIcal(ical: Ical) {
+    setError(null);
+    setResult(null);
+    setRefreshingId(ical.id);
+    try {
+      const res = await api.refreshIcal(ical.id);
+      await refreshIcals();
+      await store.reload();
+      setResult(res);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not refresh that timetable.');
+    } finally {
+      setRefreshingId(null);
     }
   }
 
@@ -370,8 +403,20 @@ function TimetableTab({
                     <span className="ical-url" title={ic.url}>
                       {prettyUrl(ic.url)}
                     </span>
-                    <span className="ical-sub">{ic.active ? 'Enabled' : 'Disabled'}</span>
+                    <span className="ical-sub">
+                      {ic.active ? 'Enabled' : 'Disabled'}
+                      {ic.last_imported && ` · Refreshed ${lastRefreshedLabel(ic.last_imported)}`}
+                    </span>
                   </div>
+                  <button
+                    className="ical-refresh"
+                    onClick={() => refreshIcal(ic)}
+                    disabled={refreshingId === ic.id}
+                    aria-label="Refresh timetable"
+                    title="Refresh — re-pull this feed and sync its events"
+                  >
+                    {refreshingId === ic.id ? '…' : '↻'}
+                  </button>
                   <button
                     className="ical-del"
                     onClick={() => removeIcal(ic)}

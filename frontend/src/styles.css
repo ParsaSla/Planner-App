@@ -1009,6 +1009,7 @@ button {
   font-size: 12px;
   color: var(--text-faint);
 }
+.ical-refresh,
 .ical-del {
   flex: 0 0 auto;
   width: 28px;
@@ -1020,6 +1021,18 @@ button {
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
+}
+.ical-refresh {
+  font-size: 15px;
+}
+.ical-refresh:hover:not(:disabled) {
+  background: var(--accent, var(--border-strong));
+  border-color: var(--accent, var(--border-strong));
+  color: #fff;
+}
+.ical-refresh:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 .ical-del:hover {
   background: var(--danger);

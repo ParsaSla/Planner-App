@@ -261,8 +261,8 @@ function collectDates(map: Record<string, Date> | undefined): string[] | undefin
 /**
  * Parse raw iCal text into VEVENT series. Each VEVENT becomes ONE entry: recurring
  * events carry their raw RRULE (+ EXDATE/RDATE) instead of being expanded, so the
- * feed is stored faithfully. Per-occurrence override instances (RECURRENCE-ID) and
- * zero-length markers (e.g. "Start of Term") are dropped.
+ * feed is stored faithfully. Per-occurrence override instances (RECURRENCE-ID) are
+ * dropped; zero-length VEVENTs (e.g. "Start of Term") are kept as point-in-time events.
  */
 export function parseICSToEvents(ics: string): ParsedICalEvent[] {
     let data: nodeIcal.CalendarResponse;
@@ -291,10 +291,9 @@ export function parseICSToEvents(ics: string): ParsedICalEvent[] {
         const rrule = event.rrule ? extractRRule(event.rrule) : undefined;
         const allDay = (start as ZonedDate).dateOnly === true;
 
-        // Drop zero-length markers ("Start of Term 2" etc.) — but only for non-recurring,
-        // non-all-day events; a recurring rule or an all-day date is still a real event.
-        if (!rrule && !allDay && start.getTime() === end.getTime()) continue;
-
+        // Zero-length VEVENTs (DTSTART == DTEND, e.g. "Start of Term 2") are kept and
+        // imported as point-in-time events — they expand to a single occurrence the
+        // calendar renders at a readable minimum height.
         const resolvedStart = resolveInstant(start);
         const resolvedEnd = resolveInstant(end);
         events.push({
@@ -560,4 +559,32 @@ export function commitICalImport(
     run();
 
     return { createdCourses, importedEvents, updated, skipped };
+}
+
+/**
+ * Re-pull a saved subscription and sync its events without a review step: re-fetch and
+ * re-parse the feed, then commit every group — matching existing courses by code and
+ * creating a course for any genuinely new group. Existing rows are refreshed in place
+ * (moved rooms, new term breaks); new events are added; `last_imported` is bumped.
+ */
+export async function refreshIcal(UID: string, icalId: number): Promise<ImportResult> {
+    requireUser(UID);
+    const ical = getIcalById(UID, icalId);
+    if (!ical) {
+        throw new AppError('That iCal subscription does not exist', ERRORS.INVALID_ICAL_DATA);
+    }
+
+    const preview = await previewICalImport(UID, ical.url);
+    // Accept every proposed group: reuse the matched course when there is one, otherwise
+    // create a new course with the suggested colour (mirrors clicking "Import" on the review screen).
+    const courseDecisions: CourseDecision[] = preview.proposedCourses.map((pc) => ({
+        key: pc.key,
+        include: true,
+        name: pc.name,
+        code: pc.code,
+        color: pc.matchedCourseId ? undefined : pc.suggestedColor,
+        courseId: pc.matchedCourseId,
+    }));
+
+    return commitICalImport(UID, ical.url, courseDecisions, preview.events);
 }

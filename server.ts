@@ -4,7 +4,7 @@ import {invalidateSession, validateSession, login, register} from './backend/aut
 import { initializeDB } from './backend/db/connection';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, setOneTimeCompletion, setOccurrenceCompletion, createCourse, getCourses, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport, addIcal, removeIcal, updateIcal, getIcal, getIcals } from './backend/API';
+import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, setOneTimeCompletion, setOccurrenceCompletion, createCourse, getCourses, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport, addIcal, removeIcal, updateIcal, getIcal, getIcals, refreshIcal } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -234,6 +234,14 @@ app.get("/api/ical/:icalId", (req, res) => {
   const icalId = Number(req.params.icalId);
   const icalRow = getIcal(UID, icalId);
   res.status(200).json({ success: true, ical: icalRow });
+});
+
+// re-pull a saved subscription and sync its events (no review step); bumps last_imported.
+app.post("/api/ical/:icalId/refresh", async (req, res) => {
+  const UID = authenticate(req);
+  const icalId = Number(req.params.icalId);
+  const result = await refreshIcal(UID, icalId);
+  res.status(200).json({ success: true, result });
 });
 
 app.get("/api/ical", (req, res) => {

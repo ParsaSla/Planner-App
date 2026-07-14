@@ -8,7 +8,7 @@ import { getCoursesByUID } from '../../backend/db/courses';
 
 // A small calendar exercising: a recurring class (kept as one series with its RRULE +
 // an EXDATE term break), a standalone dated event with a fuller DESCRIPTION, an event
-// with no course code, and a zero-length marker that should be dropped.
+// with no course code, and a zero-length marker kept as a point-in-time event.
 const SAMPLE_ICS = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -110,10 +110,13 @@ describe('backend/api/ical parseICSToEvents', () => {
         expect(chess!.detectedCode).toBeUndefined();
     });
 
-    it('drops zero-length marker events', () => {
+    it('keeps zero-length marker events as point-in-time events', () => {
         const events = parseICSToEvents(SAMPLE_ICS);
-        expect(events.some(e => e.sourceUid === 'marker@uni')).toBe(false);
-        expect(events.length).toBe(3); // lecture series + exam + chess
+        const marker = events.find(e => e.sourceUid === 'marker@uni');
+        expect(marker).toBeDefined();
+        expect(marker!.rrule).toBeUndefined();
+        expect(marker!.start).toBe(marker!.end); // zero-length: a single point in time
+        expect(events.length).toBe(4); // lecture series + exam + chess + marker
     });
 });
 
@@ -177,15 +180,15 @@ describe('backend/api/ical commitICalImport', () => {
         const events = parseICSToEvents(SAMPLE_ICS);
 
         const result = commitICalImport(uid, 'https://example.com/cal.ics', decisionsFor(), events);
-        expect(result.importedEvents).toBe(3); // lecture series + exam + chess (not expanded)
+        expect(result.importedEvents).toBe(4); // lecture series + exam + chess + marker (not expanded)
         expect(result.updated).toBe(0);
-        expect(result.createdCourses).toBe(3);
+        expect(result.createdCourses).toBe(3); // chess + marker share the uncategorised group
 
         const courses = getCoursesByUID(uid);
         expect(courses.map(c => c.course_code).sort()).toEqual(['COMP1010', 'MATH1001', null]);
 
         const stored = getItemsByUID(uid);
-        expect(stored.length).toBe(3);
+        expect(stored.length).toBe(4);
         // Every imported row records its source VEVENT UID for stable re-import identity.
         expect(stored.every(r => !!r.ical_uid)).toBe(true);
 
@@ -211,8 +214,8 @@ describe('backend/api/ical commitICalImport', () => {
         );
 
         const result = commitICalImport(uid, 'https://example.com/cal.ics', decisions, events);
-        expect(result.importedEvents).toBe(2); // lecture + exam; chess (uncategorised) skipped
-        expect(result.skipped).toBe(1);
+        expect(result.importedEvents).toBe(2); // lecture + exam; chess + marker (uncategorised) skipped
+        expect(result.skipped).toBe(2);
     });
 
     it('refreshes existing rows in place on re-import (by iCal UID), not duplicating', () => {
@@ -237,11 +240,11 @@ describe('backend/api/ical commitICalImport', () => {
 
         const second = commitICalImport(uid, 'https://example.com/cal.ics', reDecisions, moved);
         expect(second.importedEvents).toBe(0);
-        expect(second.updated).toBe(3);
+        expect(second.updated).toBe(4);
         expect(second.createdCourses).toBe(0);
 
         const stored = getItemsByUID(uid);
-        expect(stored.length).toBe(3); // no duplicates
+        expect(stored.length).toBe(4); // no duplicates
         const lecture = stored.find(r => r.ical_uid === 'comp1010-lecture@uni')!;
         expect(lecture.location).toBe('Room 2'); // refreshed in place
     });
