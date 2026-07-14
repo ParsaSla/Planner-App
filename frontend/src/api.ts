@@ -90,8 +90,11 @@ export const api = {
   async getGroups(): Promise<Group[]> {
     const data = await request<{ success: boolean; courses: CourseRow[] }>('/api/courses');
     // The backend returns raw course rows; map them to the frontend Group shape.
+    // Keep the id numeric at runtime (the codebase carries numeric ids under a
+    // `string` type) so it still `===`-matches Item.courseId when colour-coding
+    // and filtering by group.
     return data.courses.map((c) => ({
-      id: String(c.id),
+      id: c.id as unknown as string,
       name: c.course_name,
       code: c.course_code || undefined,
       color: c.color_code || undefined,
