@@ -9,6 +9,8 @@ import TaskView from './components/TaskView';
 import Fab from './components/Fab';
 import type { CreateKind } from './components/Fab';
 import CreateModal from './components/CreateModal';
+import DetailModal from './components/DetailModal';
+import type { DetailTarget } from './components/DetailModal';
 import CalendarOverlay from './components/CalendarOverlay';
 import SettingsModal from './components/SettingsModal';
 
@@ -20,14 +22,21 @@ interface ModalState {
 export default function App() {
   const store = useStore();
   const settings = useSettings();
-  const [selection, setSelection] = useState<Selection>({ kind: 'view', view: 'today' });
+  const [selection, setSelection] = useState<Selection>({ kind: 'view', view: 'home' });
   const [query, setQuery] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [detail, setDetail] = useState<DetailTarget | null>(null);
 
   const openCreate = (kind: CreateKind) => setModal({ initial: kind });
   const openEdit = (item: Item) => setModal({ initial: 'item', editingItem: item });
+  const openDetail = (target: DetailTarget) => setDetail(target);
+  // Clicking Edit inside the detail view hands off to the editor.
+  const editFromDetail = (item: Item) => {
+    setDetail(null);
+    openEdit(item);
+  };
 
   return (
     <div className="app">
@@ -57,7 +66,7 @@ export default function App() {
             </div>
           </main>
         ) : (
-          <TaskView store={store} selection={selection} query={query} onEdit={openEdit} />
+          <TaskView store={store} selection={selection} query={query} onOpenDetail={openDetail} />
         )}
       </div>
 
@@ -72,8 +81,21 @@ export default function App() {
         />
       )}
 
+      {detail && (
+        <DetailModal
+          store={store}
+          target={detail}
+          onClose={() => setDetail(null)}
+          onEdit={editFromDetail}
+        />
+      )}
+
       {calendarOpen && (
-        <CalendarOverlay store={store} onClose={() => setCalendarOpen(false)} onEdit={openEdit} />
+        <CalendarOverlay
+          store={store}
+          onClose={() => setCalendarOpen(false)}
+          onOpenDetail={openDetail}
+        />
       )}
 
       {settingsOpen && (

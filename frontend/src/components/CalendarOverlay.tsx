@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Store } from '../useStore';
-import type { Item, ItemOccurrence } from '../types';
+import type { ItemOccurrence } from '../types';
+import type { DetailTarget } from './DetailModal';
 import {
   addDays,
   dayKey,
@@ -20,7 +21,7 @@ type CalView = 'day' | 'week' | 'month';
 interface Props {
   store: Store;
   onClose: () => void;
-  onEdit: (item: Item) => void;
+  onOpenDetail: (target: DetailTarget) => void;
 }
 
 const HEAD_H = 54;
@@ -41,10 +42,10 @@ function viewRange(view: CalView, anchor: Date): { start: Date; end: Date } {
   return { start, end: addDays(start, 1) };
 }
 
-/** Route an occurrence's edit back to its source item. */
-function editSource(store: Store, occ: ItemOccurrence, onEdit: (item: Item) => void) {
+/** Open the detail view for an occurrence, routed back to its source item. */
+function openDetail(store: Store, occ: ItemOccurrence, onOpenDetail: (target: DetailTarget) => void) {
   const src = store.items.find((it) => it.id === occ.id);
-  if (src) onEdit(src);
+  if (src) onOpenDetail({ item: src, occurrence: occ });
 }
 
 /** Toggle completion for an occurrence (recurring occurrences carry their start instant). */
@@ -67,7 +68,7 @@ function CalCheck({ store, occ }: { store: Store; occ: ItemOccurrence }) {
   );
 }
 
-export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
+export default function CalendarOverlay({ store, onClose, onOpenDetail }: Props) {
   const [view, setView] = useState<CalView>('week'); // week is the default
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
 
@@ -146,9 +147,9 @@ export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
 
       <div className="cal-body">
         {view === 'month' ? (
-          <MonthView store={store} anchor={anchor} onEdit={onEdit} />
+          <MonthView store={store} anchor={anchor} onOpenDetail={onOpenDetail} />
         ) : (
-          <TimeGrid store={store} anchor={anchor} view={view} onEdit={onEdit} />
+          <TimeGrid store={store} anchor={anchor} view={view} onOpenDetail={onOpenDetail} />
         )}
       </div>
     </div>
@@ -156,7 +157,15 @@ export default function CalendarOverlay({ store, onClose, onEdit }: Props) {
 }
 
 // ---------------- Month ----------------
-function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEdit: (t: Item) => void }) {
+function MonthView({
+  store,
+  anchor,
+  onOpenDetail,
+}: {
+  store: Store;
+  anchor: Date;
+  onOpenDetail: (target: DetailTarget) => void;
+}) {
   const gridStart = startOfWeek(startOfMonth(anchor));
   const weeks = useMemo(() => {
     const byDay = new Map<string, ItemOccurrence[]>();
@@ -205,7 +214,7 @@ function MonthView({ store, anchor, onEdit }: { store: Store; anchor: Date; onEd
                       key={i}
                       className={`ev${occ.completed ? ' done' : ''}`}
                       style={{ '--c': color, '--cc': softColor(color) } as CSSProperties}
-                      onClick={() => editSource(store, occ, onEdit)}
+                      onClick={() => openDetail(store, occ, onOpenDetail)}
                       title={occ.title}
                     >
                       {occ.allDay ? '' : `${formatTime(new Date(occ.start))} `}
@@ -284,12 +293,12 @@ function TimeGrid({
   store,
   anchor,
   view,
-  onEdit,
+  onOpenDetail,
 }: {
   store: Store;
   anchor: Date;
   view: 'day' | 'week';
-  onEdit: (t: Item) => void;
+  onOpenDetail: (target: DetailTarget) => void;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -348,7 +357,7 @@ function TimeGrid({
                         key={i}
                         className={`tg-ev allday${occ.completed ? ' done' : ''}`}
                         style={{ '--c': color, '--cc': softColor(color) } as CSSProperties}
-                        onClick={() => editSource(store, occ, onEdit)}
+                        onClick={() => openDetail(store, occ, onOpenDetail)}
                         title={occ.title}
                       >
                         <CalCheck store={store} occ={occ} />
@@ -379,7 +388,7 @@ function TimeGrid({
                           '--cc': softColor(color),
                         } as CSSProperties
                       }
-                      onClick={() => editSource(store, lo.occ, onEdit)}
+                      onClick={() => openDetail(store, lo.occ, onOpenDetail)}
                       title={lo.occ.title}
                     >
                       <CalCheck store={store} occ={lo.occ} />

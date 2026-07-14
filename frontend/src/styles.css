@@ -359,6 +359,25 @@ button {
   font-size: 12.5px;
 }
 
+.section-empty {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  padding: 6px 2px 4px;
+}
+.expand-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 2px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+.expand-btn:hover {
+  color: var(--text);
+}
+
 .task {
   display: flex;
   align-items: center;
@@ -786,6 +805,92 @@ button {
   font-size: 13.5px;
   color: var(--text-dim);
   line-height: 1.5;
+}
+
+/* ---------- Item detail view ---------- */
+.modal.detail {
+  width: 440px;
+}
+.modal-head .detail-dot {
+  background: var(--c, var(--accent));
+}
+.detail-body {
+  gap: 20px;
+}
+.detail-complete {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 15px;
+  border-radius: 11px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.14s;
+}
+.detail-complete:hover {
+  border-color: var(--c, var(--accent));
+}
+.detail-complete .dc-box {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 2px solid var(--border-strong);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  transition: 0.14s;
+}
+.detail-complete.done {
+  background: var(--cc, var(--accent-soft));
+  color: var(--c, var(--accent));
+  border-color: var(--c, var(--accent));
+}
+.detail-complete.done .dc-box {
+  background: var(--c, var(--accent));
+  border-color: var(--c, var(--accent));
+}
+.detail-complete.done .dc-box::after {
+  content: '✓';
+  font-size: 13px;
+  color: #0d0f14;
+  font-weight: 800;
+}
+.detail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.detail-row {
+  display: grid;
+  grid-template-columns: 24px 72px 1fr;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+.detail-row:first-child {
+  border-top: none;
+}
+.dr-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+.dr-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+.dr-value {
+  color: var(--text);
+  min-width: 0;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 /* ---------- Settings modal ---------- */

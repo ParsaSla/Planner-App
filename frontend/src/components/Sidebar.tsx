@@ -1,7 +1,6 @@
 import type { Store } from '../useStore';
 import type { Selection } from '../nav';
 import { selectionKey } from '../nav';
-import { dayKey } from '../util';
 
 interface Props {
   store: Store;
@@ -13,17 +12,6 @@ interface Props {
 
 export default function Sidebar({ store, selection, onSelect, onNewGroup, onOpenSettings }: Props) {
   const { items, groups } = store;
-  const todayKey = dayKey(new Date());
-  const todayName = dayName(new Date());
-
-  // Counts for the smart views.
-  const todayCount = items.filter((i) =>
-    i.recurrence === 'ONE_TIME'
-      ? dayKey(new Date(i.start_date)) === todayKey
-      : (i.daysOfWeek ?? []).some((d) => d === todayName)
-  ).length;
-  const allCount = items.length;
-  const recurringCount = items.filter((i) => i.recurrence === 'RECURRING').length;
 
   const sel = selectionKey(selection);
 
@@ -32,25 +20,10 @@ export default function Sidebar({ store, selection, onSelect, onNewGroup, onOpen
   return (
     <aside className="sidebar">
       <SmartItem
-        icon="📅"
-        label="Today"
-        count={todayCount}
-        active={sel === 'view:today'}
-        onClick={() => onSelect({ kind: 'view', view: 'today' })}
-      />
-      <SmartItem
-        icon="📋"
-        label="All Items"
-        count={allCount}
-        active={sel === 'view:all'}
-        onClick={() => onSelect({ kind: 'view', view: 'all' })}
-      />
-      <SmartItem
-        icon="🔁"
-        label="Recurring"
-        count={recurringCount}
-        active={sel === 'view:recurring'}
-        onClick={() => onSelect({ kind: 'view', view: 'recurring' })}
+        icon="🏠"
+        label="Home"
+        active={sel === 'view:home'}
+        onClick={() => onSelect({ kind: 'view', view: 'home' })}
       />
 
       <div className="side-label">Groups</div>
@@ -111,8 +84,4 @@ function SmartItem({
       {count !== undefined && count > 0 && <span className="count">{count}</span>}
     </button>
   );
-}
-
-function dayName(d: Date) {
-  return ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][d.getDay()];
 }
