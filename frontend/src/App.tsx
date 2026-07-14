@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStore } from './useStore';
 import { useSettings } from './settings';
 import type { Selection } from './nav';
-import type { Item } from './types';
+import type { Group, Item } from './types';
 import TopBar from './components/TopBar';
 import Sidebar from './components/Sidebar';
 import TaskView from './components/TaskView';
@@ -17,6 +17,7 @@ import SettingsModal from './components/SettingsModal';
 interface ModalState {
   initial: CreateKind;
   editingItem?: Item;
+  editingGroup?: Group;
 }
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
 
   const openCreate = (kind: CreateKind) => setModal({ initial: kind });
   const openEdit = (item: Item) => setModal({ initial: 'item', editingItem: item });
+  const openEditGroup = (group: Group) => setModal({ initial: 'group', editingGroup: group });
   const openDetail = (target: DetailTarget) => setDetail(target);
   // Clicking Edit inside the detail view hands off to the editor.
   const editFromDetail = (item: Item) => {
@@ -48,6 +50,7 @@ export default function App() {
           selection={selection}
           onSelect={setSelection}
           onNewGroup={() => openCreate('group')}
+          onEditGroup={openEditGroup}
           onOpenSettings={() => setSettingsOpen(true)}
         />
 
@@ -77,6 +80,7 @@ export default function App() {
           store={store}
           initial={modal.initial}
           editingItem={modal.editingItem}
+          editingGroup={modal.editingGroup}
           onClose={() => setModal(null)}
         />
       )}

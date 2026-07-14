@@ -26,6 +26,7 @@ export interface Store {
    */
   setCompletion: (id: string, completed: boolean, start?: string) => Promise<void>;
   createGroup: (input: GroupInput) => Promise<void>;
+  updateGroup: (id: string, input: GroupInput) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
 }
 
@@ -108,6 +109,7 @@ export function useStore(): Store {
     deleteItem: (id) => run(() => api.deleteItem(id))(),
     setCompletion: (id, completed, start) => run(() => api.setCompletion(id, completed, start))(),
     createGroup: (input) => run(() => api.createGroup(input))(),
+    updateGroup: (id, input) => run(() => api.updateGroup(id, input))(),
     deleteGroup: (id) => run(() => api.deleteGroup(id))(),
   };
 }

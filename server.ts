@@ -4,7 +4,7 @@ import {invalidateSession, validateSession, login, register} from './backend/aut
 import { initializeDB } from './backend/db/connection';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, setOneTimeCompletion, setOccurrenceCompletion, createCourse, getCourses, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport, addIcal, removeIcal, updateIcal, getIcal, getIcals, refreshIcal } from './backend/API';
+import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, setOneTimeCompletion, setOccurrenceCompletion, createCourse, getCourses, updateCourse, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport, addIcal, removeIcal, updateIcal, getIcal, getIcals, refreshIcal } from './backend/API';
 
 const app = express();
 const port = 8080;
@@ -174,6 +174,14 @@ app.post("/api/courses", (req, res) => {
   const UID = authenticate(req);
   createCourse(name, UID, code, color);
   res.status(201).json({ success: true });
+});
+
+// update course, expects { name?, code?, color? }
+app.put("/api/courses/:id", (req, res) => {
+  const { name, code, color } = req.body;
+  const UID = authenticate(req);
+  updateCourse(UID, Number(req.params.id), { name, code, color });
+  res.status(200).json({ success: true });
 });
 
 // delete course

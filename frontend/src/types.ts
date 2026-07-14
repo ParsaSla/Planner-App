@@ -29,6 +29,17 @@ export interface Group {
 }
 
 /**
+ * A raw course row as returned by `GET /api/courses` — mirrors backend/db/courses.ts
+ * CourseRow. The frontend maps these to the `Group` shape it works with.
+ */
+export interface CourseRow {
+  id: number;
+  course_name: string;
+  course_code?: string;
+  color_code?: string;
+}
+
+/**
  * A raw source item as returned by `GET /api/items` — the underlying record the
  * edit form and list/smart views read. Recurring items expose their selected
  * `daysOfWeek` (derived from the stored RRULE) plus the series' start/end dates

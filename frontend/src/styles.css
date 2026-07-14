@@ -218,6 +218,7 @@ button {
   padding: 1px 8px;
   border-radius: 20px;
 }
+.side-item .edit,
 .side-item .del {
   opacity: 0;
   color: var(--text-faint);
@@ -227,8 +228,12 @@ button {
   cursor: pointer;
   padding: 0 2px;
 }
+.side-item:hover .edit,
 .side-item:hover .del {
   opacity: 1;
+}
+.side-item .edit:hover {
+  color: var(--accent);
 }
 .side-item .del:hover {
   color: var(--danger);

@@ -1,5 +1,6 @@
 import type { Store } from '../useStore';
 import type { Selection } from '../nav';
+import type { Group } from '../types';
 import { selectionKey } from '../nav';
 
 interface Props {
@@ -7,10 +8,18 @@ interface Props {
   selection: Selection;
   onSelect: (s: Selection) => void;
   onNewGroup: () => void;
+  onEditGroup: (group: Group) => void;
   onOpenSettings: () => void;
 }
 
-export default function Sidebar({ store, selection, onSelect, onNewGroup, onOpenSettings }: Props) {
+export default function Sidebar({
+  store,
+  selection,
+  onSelect,
+  onNewGroup,
+  onEditGroup,
+  onOpenSettings,
+}: Props) {
   const { items, groups } = store;
 
   const sel = selectionKey(selection);
@@ -38,6 +47,16 @@ export default function Sidebar({ store, selection, onSelect, onNewGroup, onOpen
             <span className="dot" style={{ background: store.groupColor(g.id) }} />
             <span className="label">{g.name}</span>
             <span className="count">{groupCount(g.id)}</span>
+            <span
+              className="edit"
+              title="Edit group"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditGroup(g);
+              }}
+            >
+              ✎
+            </span>
             <span
               className="del"
               title="Delete group"

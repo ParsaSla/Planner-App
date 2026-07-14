@@ -4,6 +4,7 @@ import type {
   ItemInput,
   Group,
   GroupInput,
+  CourseRow,
   ImportPreview,
   ImportResult,
   CourseDecision,
@@ -87,12 +88,25 @@ export const api = {
 
   // ---- Groups (a.k.a. Courses on the backend) ----
   async getGroups(): Promise<Group[]> {
-    const data = await request<{ success: boolean; courses: Group[] }>('/api/courses');
-    return data.courses;
+    const data = await request<{ success: boolean; courses: CourseRow[] }>('/api/courses');
+    // The backend returns raw course rows; map them to the frontend Group shape.
+    return data.courses.map((c) => ({
+      id: String(c.id),
+      name: c.course_name,
+      code: c.course_code || undefined,
+      color: c.color_code || undefined,
+    }));
   },
 
   async createGroup(input: GroupInput): Promise<void> {
     await request('/api/courses', { method: 'POST', body: JSON.stringify(input) });
+  },
+
+  async updateGroup(id: string, input: GroupInput): Promise<void> {
+    await request(`/api/courses/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
   },
 
   async deleteGroup(id: string): Promise<void> {

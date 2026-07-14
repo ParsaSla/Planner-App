@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Store } from '../useStore';
 import type { CreateKind } from './Fab';
-import type { Day, Item, ItemInput, Recurrence } from '../types';
+import type { Day, Group, Item, ItemInput, Recurrence } from '../types';
 import { DAYS } from '../types';
 import { dayKey, parseTaskDate } from '../util';
 
@@ -9,6 +9,7 @@ interface Props {
   store: Store;
   initial: CreateKind;
   editingItem?: Item;
+  editingGroup?: Group;
   onClose: () => void;
 }
 
@@ -24,7 +25,7 @@ const DAY_LETTER: Record<Day, string> = {
 
 const SWATCHES = ['#6d8bff', '#ff7a90', '#3ecf8e', '#f0b429', '#b07cff', '#41d0d8', '#ff9d5c'];
 
-export default function CreateModal({ store, initial, editingItem, onClose }: Props) {
+export default function CreateModal({ store, initial, editingItem, editingGroup, onClose }: Props) {
   const isGroup = initial === 'group';
 
   const initialRecurrence: Recurrence = editingItem?.recurrence ?? 'ONE_TIME';
@@ -71,9 +72,9 @@ export default function CreateModal({ store, initial, editingItem, onClose }: Pr
   );
 
   // ---- group form state ----
-  const [gName, setGName] = useState('');
-  const [gCode, setGCode] = useState('');
-  const [gColor, setGColor] = useState(SWATCHES[0]);
+  const [gName, setGName] = useState(editingGroup?.name ?? '');
+  const [gCode, setGCode] = useState(editingGroup?.code ?? '');
+  const [gColor, setGColor] = useState(editingGroup?.color ?? SWATCHES[0]);
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -95,7 +96,9 @@ export default function CreateModal({ store, initial, editingItem, onClose }: Pr
       setSaving(true);
       if (isGroup) {
         if (!gName.trim()) throw new Error('Group name is required.');
-        await store.createGroup({ name: gName.trim(), code: gCode.trim() || undefined, color: gColor });
+        const groupInput = { name: gName.trim(), code: gCode.trim() || undefined, color: gColor };
+        if (editingGroup) await store.updateGroup(editingGroup.id, groupInput);
+        else await store.createGroup(groupInput);
       } else {
         if (!title.trim()) throw new Error('Title is required.');
         let input: ItemInput;
@@ -162,7 +165,9 @@ export default function CreateModal({ store, initial, editingItem, onClose }: Pr
   }
 
   const heading = isGroup
-    ? { icon: '▣', title: 'New Group', save: 'Create Group' }
+    ? editingGroup
+      ? { icon: '▣', title: 'Edit Group', save: 'Save Changes' }
+      : { icon: '▣', title: 'New Group', save: 'Create Group' }
     : editingItem
     ? { icon: '✎', title: 'Edit Item', save: 'Save Changes' }
     : {
