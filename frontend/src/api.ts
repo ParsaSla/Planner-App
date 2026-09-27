@@ -55,9 +55,10 @@ export const api = {
   },
 
   // Server-expanded occurrences over the [from, to) window (calendar / agenda).
-  async getOccurrences(from: string, to: string): Promise<ItemOccurrence[]> {
+  async getOccurrences(from: string, to: string, signal?: AbortSignal): Promise<ItemOccurrence[]> {
     const data = await request<{ success: boolean; items: ItemOccurrence[] }>(
-      `/api/items/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+      `/api/items/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      { signal }
     );
     return data.items;
   },

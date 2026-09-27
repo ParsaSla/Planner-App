@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { Store } from '../useStore';
 import type { Item, ItemOccurrence } from '../types';
@@ -30,6 +30,22 @@ export default function DetailModal({ store, target, onClose, onEdit }: Props) {
   // after a toggle (the target itself is a click-time snapshot).
   const item = store.items.find((it) => it.id === target.item.id) ?? target.item;
   const isRecurring = item.recurrence === 'RECURRING';
+  const imported = item.source_uid != null;
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteImported() {
+    if (!window.confirm(`Delete "${item.title}"? A feed refresh may recreate it.`)) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await store.deleteItem(item.id);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not delete the item');
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -72,6 +88,8 @@ export default function DetailModal({ store, target, onClose, onEdit }: Props) {
         </div>
 
         <div className="modal-body detail-body">
+          {imported && <p>Managed by your calendar subscription.</p>}
+          {error && <p role="alert">{error}</p>}
           {toggle && (
             <button
               className={`detail-complete${completed ? ' done' : ''}`}
@@ -106,9 +124,13 @@ export default function DetailModal({ store, target, onClose, onEdit }: Props) {
           <button className="btn" onClick={onClose}>
             Close
           </button>
-          <button className="btn primary" onClick={() => onEdit(item)}>
-            ✎ Edit
-          </button>
+          {imported ? (
+            <button className="btn" disabled={deleting} onClick={deleteImported}>
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
+          ) : (
+            <button className="btn primary" onClick={() => onEdit(item)}>✎ Edit</button>
+          )}
         </div>
       </div>
     </div>

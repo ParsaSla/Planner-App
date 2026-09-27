@@ -48,7 +48,7 @@ A full-stack web application designed to help university students manage their t
 
 - **Language**: TypeScript
 - **Styling**: CSS
-- **Architecture**: Vanilla JavaScript with TypeScript
+- **Architecture**: React dashboard built with Vite
 
 ### Development & Testing
 
@@ -101,7 +101,7 @@ Planner-App/
 
 ### Prerequisites
 
-- Node.js (v18 or higher)
+- Node.js (v20 or higher)
 - npm
 
 ### Setup Steps
@@ -134,12 +134,12 @@ Planner-App/
 npm run dev
 ```
 
-This starts the backend server with TypeScript watch mode enabled.
+This starts Express on port 8080 and the Vite development client on port 5173. Run `npm run build` once first to compile the login script and dashboard assets.
 
-**Watch Frontend** (compile TypeScript files):
+**Frontend Development Server**:
 
 ```bash
-npm run watch:frontend
+npm run dev:client
 ```
 
 **Run Both Simultaneously**:
@@ -160,9 +160,34 @@ npm test
 
 Available test files:
 
-- `test/backend/API.test.ts` - API endpoint tests
-- `test/backend/auth.test.ts` - Authentication tests
-- `test/backend/dbManager.test.ts` - Database operation tests
+- `test/backend/` — authentication, item recurrence, import parsing and integrity, guarded downloads, and HTTP endpoint tests.
+- `test/frontend/` — React interaction and occurrence-query tests using Testing Library and jsdom.
+
+Run all validation before merging:
+
+```bash
+npm test
+npm run build
+```
+
+The build compiles the backend, runs `npm run typecheck:client`, and builds the dashboard. Tests use isolated databases, mocked network transports, and temporary loopback HTTP servers; they do not require public calendar services or use `data/app.db`.
+
+### Calendar subscriptions
+
+Imported events are managed by their calendar subscription. Their details and schedules are read-only in the UI; `PUT /api/items/:id` returns HTTP 409 for an imported item. Completion and deletion remain available, and manual items remain editable. Refreshing a feed updates imported details while preserving completion. Switching an event between one-time and recurring resets incompatible completion state. A later refresh may recreate an individually deleted imported event.
+
+Preview and refresh share a guarded downloader:
+
+- Accepts public HTTP/HTTPS destinations and converts `webcal://` to HTTPS.
+- Rejects embedded credentials, private/internal addresses, and DNS results containing non-public addresses. Each redirect is checked and connections use a validated address.
+- Allows at most three redirects, ten seconds total including DNS and body transfer, and a 5 MiB response.
+- Requests uncompressed content and rejects compressed responses.
+
+Private-network calendar services are unsupported. Feed URLs may contain access tokens; request logs omit query strings and download errors do not expose raw network messages. Import course selections must belong to the authenticated user.
+
+Home and Calendar load independent occurrence ranges. Imports, refreshes, completion changes, and deletions invalidate both active views; failures have a local retry action.
+
+The Express application factory is in `app.ts`. `server.ts` initializes the database and starts listening, allowing HTTP tests to construct the app without starting the normal server.
 
 ### Database Management
 
@@ -179,7 +204,7 @@ Opens the database in SQLite Browser.
 | Command                  | Description                                    |
 | ------------------------ | ---------------------------------------------- |
 | `npm run dev`            | Start backend server with watch mode           |
-| `npm run watch:frontend` | Watch and compile TypeScript frontend files    |
+| `npm run dev:client` | Watch and compile TypeScript frontend files    |
 | `npm run build`          | Compile TypeScript to JavaScript               |
 | `npm test`               | Run test suite with Vitest                     |
 | `npm run start:all`      | Run backend and frontend watchers concurrently |
@@ -213,7 +238,7 @@ Opens the database in SQLite Browser.
 - `POST /api/courses` - Create a new course
 - `DELETE /api/courses/:id` - Delete a course
 
-For detailed API documentation, see the routes defined in [backend/API.ts](backend/API.ts).
+For detailed API documentation, see the routes defined in [app.ts](app.ts).
 
 ## Database Schema
 

@@ -46,6 +46,8 @@ export interface CourseRow {
  * and times; one-time items carry a concrete `start_date`/`end_date` span.
  */
 export interface Item {
+  /** Present when the event is controlled by a calendar subscription. */
+  source_uid?: number;
   id: string;
   courseId?: string;
   title: string;
@@ -127,7 +129,7 @@ export interface ProposedCourse {
   code?: string;
   name: string;
   suggestedColor: string;
-  matchedCourseId?: string;
+  matchedCourseId?: number;
   eventCount: number;
   newEventCount: number;
 }
@@ -144,7 +146,7 @@ export interface CourseDecision {
   name: string;
   code?: string;
   color?: string;
-  courseId?: string;
+  courseId?: number;
 }
 
 export interface ImportResult {

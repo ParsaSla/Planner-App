@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Store } from '../useStore';
+import { useOccurrences } from '../useOccurrences';
 import type { ItemOccurrence } from '../types';
 import type { DetailTarget } from './DetailModal';
 import {
@@ -78,11 +79,8 @@ export default function CalendarOverlay({ store, onClose, onOpenDetail }: Props)
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // Refetch occurrences whenever the visible window changes.
-  useEffect(() => {
-    const { start, end } = viewRange(view, anchor);
-    store.loadOccurrences(start, end);
-  }, [view, anchor, store.loadOccurrences]);
+  const range = viewRange(view, anchor);
+  const calendar = useOccurrences(range.start.toISOString(), range.end.toISOString(), store.revision);
 
   const shift = (dir: number) => {
     if (view === 'day') setAnchor((a) => addDays(a, dir));
@@ -146,10 +144,12 @@ export default function CalendarOverlay({ store, onClose, onOpenDetail }: Props)
       )}
 
       <div className="cal-body">
-        {view === 'month' ? (
-          <MonthView store={store} anchor={anchor} onOpenDetail={onOpenDetail} />
+        {calendar.error ? (
+          <div role="alert"><p>{calendar.error}</p><button className="btn" onClick={calendar.retry}>Retry calendar</button></div>
+        ) : calendar.loading ? <p role="status">Loading calendar…</p> : view === 'month' ? (
+          <MonthView occurrences={calendar.occurrences} store={store} anchor={anchor} onOpenDetail={onOpenDetail} />
         ) : (
-          <TimeGrid store={store} anchor={anchor} view={view} onOpenDetail={onOpenDetail} />
+          <TimeGrid occurrences={calendar.occurrences} store={store} anchor={anchor} view={view} onOpenDetail={onOpenDetail} />
         )}
       </div>
     </div>
@@ -158,10 +158,12 @@ export default function CalendarOverlay({ store, onClose, onOpenDetail }: Props)
 
 // ---------------- Month ----------------
 function MonthView({
+  occurrences,
   store,
   anchor,
   onOpenDetail,
 }: {
+  occurrences: ItemOccurrence[];
   store: Store;
   anchor: Date;
   onOpenDetail: (target: DetailTarget) => void;
@@ -169,7 +171,7 @@ function MonthView({
   const gridStart = startOfWeek(startOfMonth(anchor));
   const weeks = useMemo(() => {
     const byDay = new Map<string, ItemOccurrence[]>();
-    for (const occ of store.occurrences) {
+    for (const occ of occurrences) {
       const key = dayKey(occurrenceDay(occ.start, occ.allDay));
       const arr = byDay.get(key) ?? [];
       arr.push(occ);
@@ -189,7 +191,7 @@ function MonthView({
       ws.push(row);
     }
     return ws;
-  }, [store.occurrences, gridStart, anchor]);
+  }, [occurrences, gridStart, anchor]);
 
   return (
     <div className="month">
@@ -290,11 +292,13 @@ function layoutDay(occs: ItemOccurrence[]): LaidOut[] {
 }
 
 function TimeGrid({
+  occurrences,
   store,
   anchor,
   view,
   onOpenDetail,
 }: {
+  occurrences: ItemOccurrence[];
   store: Store;
   anchor: Date;
   view: 'day' | 'week';
@@ -308,12 +312,12 @@ function TimeGrid({
     return Array.from({ length: n }, (_, i) => {
       const date = addDays(start, i);
       const key = dayKey(date);
-      const dayOccs = store.occurrences.filter((o) => dayKey(occurrenceDay(o.start, o.allDay)) === key);
+      const dayOccs = occurrences.filter((o) => dayKey(occurrenceDay(o.start, o.allDay)) === key);
       const allDay = dayOccs.filter((o) => o.allDay);
       const timed = layoutDay(dayOccs.filter((o) => !o.allDay));
       return { date, timed, allDay };
     });
-  }, [store.occurrences, anchor, view]);
+  }, [occurrences, anchor, view]);
 
   // Scroll the work-day into view on mount / when the period changes.
   useEffect(() => {

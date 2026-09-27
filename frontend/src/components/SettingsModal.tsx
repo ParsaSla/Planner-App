@@ -329,7 +329,7 @@ function TimetableTab({
           name: pc.name,
           code: pc.code,
           color: pc.suggestedColor,
-          courseId: pc.matchedCourseId ?? '',
+          courseId: pc.matchedCourseId == null ? '' : String(pc.matchedCourseId),
         };
       }
       setDecisions(next);
@@ -355,7 +355,7 @@ function TimetableTab({
         name: d.name,
         code: d.code,
         color: d.courseId ? undefined : d.color,
-        courseId: d.courseId || undefined,
+        courseId: d.courseId ? Number(d.courseId) : undefined,
       }));
       const res = await api.commitICalImport({ url: url.trim(), courseDecisions, events: preview.events });
       await store.reload();

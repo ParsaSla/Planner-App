@@ -5,10 +5,12 @@ import { DateTime } from 'luxon';
 import AppError from '../error/appError';
 import { ERRORS } from '../error/errors';
 import { getSQLiteDB } from '../db/connection';
-import { getCoursesByUID, createCourseRow } from '../db/courses';
+import { getCoursesByUID, createCourseRow, getCourseById } from '../db/courses';
 import { createItemRow, getItemsBySourceUid, updateItemById, ItemRow } from '../db/items';
 import { getIcalsByUID, createIcalRow, updateIcalById, getIcalById, deleteIcalById, IcalRow } from '../db/icals';
 import { requireUser } from './helpers';
+import { downloadCalendar } from './icalDownload';
+export { normalizeICalUrl } from './icalDownload';
 
 // ---------------------------------------------------------------------------
 // Parsing: fetch an iCal feed and normalise its VEVENTs into item series.
@@ -164,47 +166,9 @@ function text(value: ParameterValue | undefined): string {
     return typeof value === 'string' ? value : String(value.val ?? '');
 }
 
-/**
- * Validate an iCal URL and return a fetchable http(s) form. webcal:// is rewritten
- * to https:// here — the URL.protocol setter is a no-op when converting between a
- * non-special scheme (webcal) and a special one (https), so we rewrite the string.
- */
-export function normalizeICalUrl(url: string): string {
-    let raw = (url || '').trim();
-    if (/^webcal:\/\//i.test(raw)) {
-        raw = 'https://' + raw.slice('webcal://'.length);
-    }
-
-    let parsed: URL;
-    try {
-        parsed = new URL(raw);
-    } catch {
-        throw new AppError('That does not look like a valid URL', ERRORS.INVALID_ICAL_URL);
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new AppError('The iCal link must be an http(s) or webcal URL', ERRORS.INVALID_ICAL_URL);
-    }
-    return parsed.toString();
-}
-
-/**
- * Download an iCal feed. Accepts http(s) and webcal URLs and validates that the body
- * actually looks like a calendar. Throws AppError on any failure.
- */
+/** Download a public calendar using the shared bounded, address-pinned transport. */
 export async function fetchICS(url: string): Promise<string> {
-    const target = normalizeICalUrl(url);
-
-    let res: Response;
-    try {
-        res = await fetch(target, { redirect: 'follow' });
-    } catch {
-        throw new AppError('Could not reach that iCal link', ERRORS.ICAL_FETCH_FAILED);
-    }
-    if (!res.ok) {
-        throw new AppError(`The iCal link responded with ${res.status}`, ERRORS.ICAL_FETCH_FAILED);
-    }
-
-    const body = await res.text();
+    const body = await downloadCalendar(url);
     if (!body.includes('BEGIN:VCALENDAR')) {
         throw new AppError('That link did not return an iCal calendar', ERRORS.ICAL_PARSE_FAILED);
     }
@@ -405,7 +369,6 @@ function itemFieldsFromEvent(ev: ParsedICalEvent, courseId: number | null) {
         location: ev.location ?? null,
         start_date: ev.start,
         end_date: ev.end,
-        completed: isRecurring ? null : 0,
         start_time: wallTimeOfDay(ev.start, ev.timezone),
         end_time: wallTimeOfDay(ev.end, ev.timezone),
         timezone: ev.timezone ?? null,
@@ -528,6 +491,13 @@ export function commitICalImport(
     };
 
     const run = db.transaction(() => {
+        // Validate included selections even when their events already exist.
+        for (const decision of courseDecisions) {
+            if (decision.include && decision.courseId !== undefined &&
+                (!Number.isInteger(decision.courseId) || !getCourseById(UID, decision.courseId))) {
+                throw new AppError('Course not found', ERRORS.COURSE_NOT_FOUND);
+            }
+        }
         // One subscription per URL: reuse an existing row (refreshing its timestamp).
         const existing = getIcalsByUID(UID).find(i => i.url === trimmedUrl);
         let icalId: number;
@@ -556,18 +526,27 @@ export function commitICalImport(
 
             if (existingRow) {
                 // Re-import: refresh the row in place (moved room, renamed class, new EXDATE).
-                updateItemById(UID, existingRow.id, fields, now);
+                const changedRecurrence = existingRow.recurrence !== fields.recurrence;
+                if (changedRecurrence) {
+                    db.prepare('DELETE FROM completions WHERE uid = ? AND item_id = ?').run(UID, existingRow.id);
+                }
+                const completion = changedRecurrence
+                    ? { completed: fields.recurrence === 'ONE_TIME' ? 0 : null }
+                    : {};
+                updateItemById(UID, existingRow.id, { ...fields, ...completion }, now);
+                imported.set(ev.sourceUid, { ...existingRow, ...fields, ...completion });
                 updated++;
             } else {
                 const id = createItemRow({
                     uid: UID,
                     ...fields,
+                    completed: fields.recurrence === 'ONE_TIME' ? 0 : null,
                     source_uid: icalId,
                     ical_uid: ev.sourceUid,
                     created_at: now,
                     updated_at: null,
                 });
-                imported.set(ev.sourceUid, { ...(fields as Partial<ItemRow>), id } as ItemRow);
+                imported.set(ev.sourceUid, { ...fields, id, completed: fields.recurrence === 'ONE_TIME' ? 0 : null } as ItemRow);
                 importedEvents++;
             }
         }

@@ -298,6 +298,11 @@ export function updateItem(
     timezone?: string,
 ): void {
     requireUser(uid);
+    const existing = getItemById(uid, id);
+    if (!existing) throw new AppError('Item not found', ERRORS.ITEM_NOT_FOUND);
+    if (existing.source_uid !== null) {
+        throw new AppError('Managed by your calendar subscription. Imported items cannot be edited.', ERRORS.ITEM_READ_ONLY);
+    }
     if (courseID !== undefined && getCourseById(uid, courseID) === null) {
         throw new AppError('Course not found', ERRORS.COURSE_NOT_FOUND);
     } else if (recurrence !== RECURRENCE.ONE_TIME && recurrence !== RECURRENCE.RECURRING) {

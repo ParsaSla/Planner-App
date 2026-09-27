@@ -25,7 +25,21 @@ const DAY_LETTER: Record<Day, string> = {
 
 const SWATCHES = ['#6d8bff', '#ff7a90', '#3ecf8e', '#f0b429', '#b07cff', '#41d0d8', '#ff9d5c'];
 
-export default function CreateModal({ store, initial, editingItem, editingGroup, onClose }: Props) {
+export default function CreateModal(props: Props) {
+  if (props.editingItem?.source_uid != null) {
+    return (
+      <div className="scrim">
+        <div className="modal" role="dialog" aria-modal="true">
+          <p>Managed by your calendar subscription.</p>
+          <button className="btn" onClick={props.onClose}>Close</button>
+        </div>
+      </div>
+    );
+  }
+  return <ItemEditor {...props} />;
+}
+
+function ItemEditor({ store, initial, editingItem, editingGroup, onClose }: Props) {
   const isGroup = initial === 'group';
 
   const initialRecurrence: Recurrence = editingItem?.recurrence ?? 'ONE_TIME';

@@ -31,7 +31,9 @@ export default function App() {
   const [detail, setDetail] = useState<DetailTarget | null>(null);
 
   const openCreate = (kind: CreateKind) => setModal({ initial: kind });
-  const openEdit = (item: Item) => setModal({ initial: 'item', editingItem: item });
+  const openEdit = (item: Item) => {
+    if (item.source_uid == null) setModal({ initial: 'item', editingItem: item });
+  };
   const openEditGroup = (group: Group) => setModal({ initial: 'group', editingGroup: group });
   const openDetail = (target: DetailTarget) => setDetail(target);
   // Clicking Edit inside the detail view hands off to the editor.

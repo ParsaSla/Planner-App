@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Store } from '../useStore';
+import { useOccurrences } from '../useOccurrences';
 import type { Selection } from '../nav';
 import type { Item, ItemOccurrence } from '../types';
 import {
@@ -39,14 +40,12 @@ export default function TaskView({ store, selection, query, onOpenDetail }: Prop
 
   const isHome = selection.kind === 'view' && selection.view === 'home';
 
-  // The Home page reads server-expanded occurrences for today + the upcoming
-  // window; load that range whenever Home becomes active. (The calendar loads
-  // its own range separately.)
-  useEffect(() => {
-    if (!isHome) return;
-    const today = startOfDay(new Date());
-    store.loadOccurrences(addDays(today, -PAST_DAYS), addDays(today, UPCOMING_DAYS + 1));
-  }, [isHome, store.loadOccurrences]);
+  const todayStartForRange = startOfDay(new Date());
+  const agenda = useOccurrences(
+    isHome ? addDays(todayStartForRange, -PAST_DAYS).toISOString() : null,
+    isHome ? addDays(todayStartForRange, UPCOMING_DAYS + 1).toISOString() : null,
+    store.revision
+  );
 
   const q = query.trim().toLowerCase();
   const matches = (t: { title: string; courseId?: string }) =>
@@ -148,6 +147,16 @@ export default function TaskView({ store, selection, query, onOpenDetail }: Prop
   );
 
   // ---------------- HOME ----------------
+  if (isHome && (agenda.loading || agenda.error)) {
+    return (
+      <main className="main">
+        <h1>Home</h1>
+        {agenda.error ? (
+          <div role="alert"><p>{agenda.error}</p><button className="btn" onClick={agenda.retry}>Retry agenda</button></div>
+        ) : <p role="status">Loading agenda…</p>}
+      </main>
+    );
+  }
   if (isHome) {
     const todayKey = dayKey(new Date());
     const todayStart = startOfDay(new Date());
@@ -156,13 +165,13 @@ export default function TaskView({ store, selection, query, onOpenDetail }: Prop
       new Date(a.start).getTime() - new Date(b.start).getTime();
 
     // What's on today — expanded occurrences landing on today's calendar day.
-    const today = store.occurrences
+    const today = agenda.occurrences
       .filter((o) => dayKey(occurrenceDay(o.start, o.allDay)) === todayKey)
       .filter((o) => matches(o))
       .sort(byStart);
 
     // What's coming up — occurrences after today, within the loaded window.
-    const upcoming = store.occurrences
+    const upcoming = agenda.occurrences
       .filter((o) => occurrenceDay(o.start, o.allDay).getTime() > todayStart.getTime())
       .filter((o) => matches(o))
       .sort(byStart);
@@ -176,7 +185,7 @@ export default function TaskView({ store, selection, query, onOpenDetail }: Prop
       .filter((t) => occurrenceDay(t.start_date, t.allDay).getTime() < todayStart.getTime())
       .map((t) => ({ time: new Date(t.start_date).getTime(), node: itemRow(t) }));
 
-    const prevRecurring = store.occurrences
+    const prevRecurring = agenda.occurrences
       .filter((o) => o.recurrence === 'RECURRING' && !o.completed)
       .filter((o) => occurrenceDay(o.start, o.allDay).getTime() < todayStart.getTime())
       .filter((o) => matches(o))
