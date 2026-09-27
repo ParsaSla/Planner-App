@@ -1,345 +1,168 @@
-# University Student Planner App
+# University Student Planner
 
-A full-stack web application designed to help university students manage their tasks, deadlines, recurring assignments, and study sessions. Built with **Express.js**, **TypeScript**, **SQLite**, and a responsive frontend dashboard.
-
-## Table of Contents
-
-- [Features](#features)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Installation](#installation)
-- [Development Setup](#development-setup)
-- [Available Scripts](#available-scripts)
-- [API Endpoints](#api-endpoints)
-- [Database Schema](#database-schema)
-- [Development Phases](#development-phases)
-- [Contributing](#contributing)
+A planner for one-time and recurring items, course groups, and imported university timetables. The dashboard uses React and TypeScript; Express serves the API and login page, and SQLite stores users, sessions, items, and settings.
 
 ## Features
 
-### Core Features (MVP - Phase 2)
+- Register, log in, and log out using a 24-hour cookie session.
+- Create, edit, and delete manual items with titles, notes, locations, and course groups.
+- Schedule one-time spans or weekly recurring items, with timezone-aware occurrence expansion.
+- Track completion for a whole one-time item or a specific recurring occurrence.
+- Browse Home's Today, Overdue, and Coming up sections, or the day/week/month calendar.
+- Search by item title or group name; create, edit, color, and delete course groups.
+- Preview iCal subscriptions, review detected courses, import events, and refresh feeds.
+- Configure semester/trimester dates and a flex-week number.
 
-- ✅ **User Authentication** - Secure registration and login with password hashing
-- ✅ **Task Management** - Create, read, update, and delete tasks
-- ✅ **Task Status Tracking** - Mark tasks as completed/incomplete
-- ✅ **Task Editing** - Modify existing task details
-- ✅ **Recurring Tasks** - Set up tasks that repeat on specified days
-- ✅ **Course Organization** - Categorize tasks by course
-- ✅ **Session Management** - Secure session handling with cookies
+Imported events have read-only details and schedules. Completion and deletion remain available. Home and Calendar keep independent date ranges and retain loaded events during background refreshes, so completion changes preserve the calendar's scroll position.
 
-### Planned Features (Phase 3+)
+## Setup and development
 
-- 📅 **Calendar View** - Interactive calendar to visualize deadlines
-- 📊 **Study Time Tracking** - Log study sessions and duration
-- 🎨 **Course Color Coding** - Visual organization by course
-- 📱 **Responsive Design** - Mobile-friendly interface
-
-## Technology Stack
-
-### Backend
-
-- **Runtime**: Node.js with TypeScript
-- **Framework**: Express.js
-- **Database**: SQLite (better-sqlite3)
-- **Authentication**: Cookie-based sessions with password hashing
-- **Build Tool**: tsx (TypeScript executor)
-
-### Frontend
-
-- **Language**: TypeScript
-- **Styling**: CSS
-- **Architecture**: React dashboard built with Vite
-
-### Development & Testing
-
-- **Package Manager**: npm
-- **Testing Framework**: Vitest
-- **TypeScript Compiler**: TypeScript 6.0.3
-- **Concurrency**: concurrently (run multiple tasks simultaneously)
-
-## Project Structure
-
-```
-Planner-App/
-├── backend/
-│   ├── API.ts                 # Express route handlers
-│   ├── auth.ts                # Authentication logic
-│   ├── dbManager.ts           # Database operations
-│   ├── util.ts                # Utility functions
-│   ├── error/
-│   │   ├── appError.ts        # Custom error class
-│   │   └── errors.ts          # Error definitions
-│   └── types/
-│       ├── DBTypes.ts         # Database type definitions
-│       ├── GeneralTypes.ts    # General type definitions
-│       └── TaskTypes.ts       # Task-specific types
-├── public/
-│   ├── dashboard/             # Main dashboard UI
-│   │   ├── dashboard.html
-│   │   ├── dashboard.ts
-│   │   └── dashboard.css
-│   └── login/                 # Login page UI
-│       ├── login.html
-│       ├── login.ts
-│       └── login.css
-├── data/                      # SQLite database storage
-├── test/
-│   └── backend/
-│       ├── API.test.ts        # API endpoint tests
-│       ├── auth.test.ts       # Authentication tests
-│       └── dbManager.test.ts  # Database tests
-├── server.ts                  # Main server entry point
-├── tsconfig.json              # TypeScript configuration
-├── package.json               # Dependencies and scripts
-├── database_schema.sql        # SQL schema definition
-├── DATABASE_SCHEMA_ERD.md     # Entity-Relationship Diagram
-└── plan.md                    # Development roadmap
-
-```
-
-## Installation
-
-### Prerequisites
-
-- Node.js (v20 or higher)
-- npm
-
-### Setup Steps
-
-1. **Clone the repository**
-
-   ```bash
-   git clone <repository-url>
-   cd Planner-App
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-3. **Build the project**
-   ```bash
-   npm run build
-   ```
-
-## Development Setup
-
-### Running the Application
-
-**Development Mode** (with hot reload):
+Requires Node.js 20 or newer and npm. Run commands from the repository root:
 
 ```bash
+npm ci
+npm run build
 npm run dev
 ```
 
-This starts Express on port 8080 and the Vite development client on port 5173. Run `npm run build` once first to compile the login script and dashboard assets.
+Open [the development login page](http://localhost:5173/login/). Vite serves the React dashboard on port 5173 and proxies API, authentication, and `/dist` requests to Express on port 8080. Building once before development creates the compiled login script at `dist/public/login/login.js`.
 
-**Frontend Development Server**:
+Express also serves the built dashboard at [http://localhost:8080/](http://localhost:8080/). To use that path without Vite, run `npm run build` followed by `npm run dev:server`; rebuild the client after frontend changes. The provided server command runs TypeScript through `tsx` in watch mode; there is no dedicated production start script.
 
-```bash
-npm run dev:client
+The server automatically initializes `data/app.db`, enables foreign keys, and uses SQLite WAL mode. No manual SQL import is required. The default database path is relative to the working directory.
+
+## Scripts
+
+| Command | Behavior |
+| --- | --- |
+| `npm run dev` | Run the Express watcher and Vite development server together. |
+| `npm run dev:server` | Run `tsx watch server.ts` on port 8080. |
+| `npm run dev:client` | Run Vite on port 5173, proxying requests to Express. |
+| `npm run build` | Compile backend/login TypeScript, type-check the frontend, and build the dashboard. |
+| `npm run build:server` | Run the root TypeScript compiler, emitting into `dist/`. |
+| `npm run build:client` | Build the dashboard into `dist/frontend/` with Vite. |
+| `npm run typecheck:client` | Check frontend TypeScript without emitting files. |
+| `npm test` | Run the backend and React regression tests with Vitest. |
+| `npm run start:all` | Build the client, then run both development servers. Requires the login script to have been compiled separately or by a full build. |
+| `npm run show:db` | Open `data/app.db` using a separately installed `sqlitebrowser`. |
+
+## Project structure
+
+```text
+app.ts                        Express application factory and HTTP routes
+server.ts                     Database initialization and listening entry point
+backend/
+  auth.ts                     Password hashing and session lifecycle
+  API.ts                      Exports the domain API functions
+  api/                        Items, courses, settings, imports, guarded downloads
+  db/                         SQLite initialization and table operations
+  error/                      Application errors and HTTP status mapping
+  types/                      Weekday and time-of-day helpers
+frontend/
+  index.html                  Vite HTML entry point
+  src/
+    App.tsx                   Dashboard and modal composition
+    api.ts                    HTTP client
+    useStore.ts               Source items, groups, mutations, refresh revision
+    useOccurrences.ts         Per-view occurrence loading and stale-request protection
+    settings.ts               University settings state
+    components/               Home, calendar, forms, navigation, and detail views
+public/login/                 Login/register HTML, CSS, and TypeScript
+test/backend/                Authentication, items, imports, download, and HTTP tests
+test/frontend/               React interactions and occurrence-query tests
+data/                         Local SQLite database and WAL files
+dist/                        Generated TypeScript and dashboard output
+DATABASE_SCHEMA_ERD.md        Current schema, relationships, and storage semantics
+database_schema.sql           Standalone schema for a fresh database
 ```
 
-**Run Both Simultaneously**:
+## HTTP API
 
-```bash
-npm run start:all
-```
+Routes are defined in [app.ts](app.ts); domain behavior is in [backend/api](backend/api). JSON endpoints return `{ "success": true, ... }` or an error `{ "success": false, "error": "..." }` with an appropriate HTTP status. API routes require a valid `SID` session cookie. Item, course, and subscription IDs are numeric; user and session IDs are UUID strings.
 
-Uses `concurrently` to run backend and frontend builds in parallel.
+### Authentication and pages
 
-### Testing
+| Method | Path | Behavior |
+| --- | --- | --- |
+| `GET` | `/` | Redirect to the dashboard or login according to session validity. |
+| `GET` | `/login/` | Serve login/register UI, or redirect an authenticated user. |
+| `POST` | `/register/` | Register with `{ username, password }`; returns the user ID and a login redirect. |
+| `POST` | `/login/` | Authenticate with `{ username, password }`; set `SID` and return a dashboard redirect. |
+| `GET` | `/logout/` | Invalidate the session, clear the cookie, and return a root redirect. |
+| `GET` | `/dashboard/` | Serve the built dashboard after checking the session. |
 
-Run the test suite:
+Usernames are lowercased. Passwords require at least eight characters, an uppercase letter, a lowercase letter, and a number. Passwords are salted and hashed with PBKDF2. The session cookie is HttpOnly, applies to `/`, and expires after 24 hours.
 
-```bash
-npm test
-```
+### Items, groups, and settings
 
-Available test files:
+| Method | Path | Behavior / request |
+| --- | --- | --- |
+| `GET` | `/api/items` | Return source `items`, including recurrence and completion data. |
+| `POST` | `/api/items` | Create a manual item using the payload described below. |
+| `PUT` | `/api/items/:id` | Update a manual item; imported items return HTTP 409. |
+| `DELETE` | `/api/items/:id` | Delete an owned manual or imported item. |
+| `GET` | `/api/items/occurrences` | Expand `items` for `?from=<ISO>&to=<ISO>`; starts fall in the half-open range `[from, to)`. |
+| `PATCH` | `/api/items/:id/completion` | Set completion using `{ completed: boolean, start?: ISO }`. |
+| `GET` | `/api/courses` | Return owned `courses` as database-shaped rows. The UI calls these groups. |
+| `POST` | `/api/courses` | Create with `{ name, code?, color? }`. |
+| `PUT` | `/api/courses/:id` | Update supplied `{ name?, code?, color? }` fields. |
+| `DELETE` | `/api/courses/:id` | Delete the course; its items remain with no course association. |
+| `GET` | `/api/settings` | Return `settings.university`; defaults are supplied for an unsaved user. |
+| `PUT` | `/api/settings` | Save `{ university: { termSystem, termDates, flexWeek } }`. |
 
-- `test/backend/` — authentication, item recurrence, import parsing and integrity, guarded downloads, and HTTP endpoint tests.
-- `test/frontend/` — React interaction and occurrence-query tests using Testing Library and jsdom.
+Manual create/update payloads share `recurrence`, `title`, and optional `courseId`, `description`, `location`, and `timezone`:
 
-Run all validation before merging:
+- `ONE_TIME`: supply `start_date` and `end_date` as ISO datetimes.
+- `RECURRING`: supply `start_date`, at least one `daysOfWeek` value such as `MONDAY`, and `start_time`/`end_time` objects `{ hour, minute }`. Optional `end_date` bounds the series. The service generates a weekly RRULE.
+
+For one-time completion, omit `start`. For recurring completion, provide the exact UTC `start` returned for that occurrence; the server validates it against the series. The occurrence API returns sorted concrete `start`/`end` timestamps, completion, and display metadata.
+
+University `termSystem` is `SEMESTER` or `TRIMESTER`. `termDates` contains two or three `{ start: { day, month }, end: { day, month } }` periods respectively; zero denotes an unset day/month. Defaults are semester, two unset periods, and flex week 6.
+
+### Calendar subscriptions
+
+| Method | Path | Behavior / request |
+| --- | --- | --- |
+| `GET` | `/api/ical` | Return saved `icals`. |
+| `POST` | `/api/ical/` | Save a subscription with `{ url }`; this alone does not download events. |
+| `GET` | `/api/ical/:icalId` | Return one owned subscription as `ical`. |
+| `PUT` | `/api/ical/:icalId` | Update `{ url?, active? }` without fetching events. |
+| `DELETE` | `/api/ical/:icalId` | Delete the subscription and its imported items/completions. |
+| `POST` | `/api/ical/preview` | Fetch `{ url }` and return a `preview` of parsed events and proposed courses; save nothing. |
+| `POST` | `/api/ical/import` | Commit `{ url, courseDecisions, events }` from the review step. |
+| `POST` | `/api/ical/:icalId/refresh` | Fetch the saved feed and sync its events without the review step. |
+
+A course decision contains `key`, `include`, `name`, optional `code`/`color`, and an optional numeric `courseId` belonging to the user. Import and refresh return `result` with `createdCourses`, `importedEvents`, `updated`, and `skipped` counts. Writes are transactional.
+
+Each VEVENT series is stored as one item. Refresh matches its feed UID within the subscription and updates it in place. It preserves one-time completion and recurring completion records; switching between one-time and recurring clears incompatible completion state. An individually deleted imported item may be recreated by a later refresh.
+
+Preview and refresh use the same guarded downloader:
+
+- HTTP and HTTPS are supported; `webcal://` is converted to HTTPS.
+- Embedded credentials and non-public destinations are rejected, including DNS answers containing private addresses. Connections use a validated address, with each redirect checked again.
+- At most three redirects, ten seconds total including DNS/body transfer, and a 5 MiB response are allowed.
+- Requests ask for uncompressed content; compressed responses are rejected.
+
+Private-network calendars are unsupported. Feed URLs may contain tokens: request logs omit query strings, and download errors do not expose raw network messages.
+
+## Database
+
+The runtime schema is defined in [backend/db/connection.ts](backend/db/connection.ts). The database has eight tables: `users`, `sessions`, `courses`, `icals`, `items`, `completions`, `settings`, and `settings_term_dates`.
+
+See [DATABASE_SCHEMA_ERD.md](DATABASE_SCHEMA_ERD.md) for relationships and field semantics, and [database_schema.sql](database_schema.sql) for the matching fresh-database DDL. The application initializes tables directly in TypeScript; it does not load the SQL file. There are no study-log tables or explicit performance indexes in the current initializer.
+
+## Validation
 
 ```bash
 npm test
 npm run build
 ```
 
-The build compiles the backend, runs `npm run typecheck:client`, and builds the dashboard. Tests use isolated databases, mocked network transports, and temporary loopback HTTP servers; they do not require public calendar services or use `data/app.db`.
+Backend tests cover authentication, recurrence/DST behavior, completion, import integrity, guarded downloads, and HTTP routes. React tests cover imported-item controls, independent Home/Calendar ranges, stale responses, retries, and completion without loading flashes or scroll resets. Tests use isolated databases, controlled network fixtures, and temporary loopback servers; they do not use `data/app.db` or require external calendar services.
 
-### Calendar subscriptions
+## Current limitations
 
-Imported events are managed by their calendar subscription. Their details and schedules are read-only in the UI; `PUT /api/items/:id` returns HTTP 409 for an imported item. Completion and deletion remain available, and manual items remain editable. Refreshing a feed updates imported details while preserving completion. Switching an event between one-time and recurring resets incompatible completion state. A later refresh may recreate an individually deleted imported event.
-
-Preview and refresh share a guarded downloader:
-
-- Accepts public HTTP/HTTPS destinations and converts `webcal://` to HTTPS.
-- Rejects embedded credentials, private/internal addresses, and DNS results containing non-public addresses. Each redirect is checked and connections use a validated address.
-- Allows at most three redirects, ten seconds total including DNS and body transfer, and a 5 MiB response.
-- Requests uncompressed content and rejects compressed responses.
-
-Private-network calendar services are unsupported. Feed URLs may contain access tokens; request logs omit query strings and download errors do not expose raw network messages. Import course selections must belong to the authenticated user.
-
-Home and Calendar load independent occurrence ranges. Imports, refreshes, completion changes, and deletions invalidate both active views; failures have a local retry action.
-
-The Express application factory is in `app.ts`. `server.ts` initializes the database and starts listening, allowing HTTP tests to construct the app without starting the normal server.
-
-### Database Management
-
-View the SQLite database:
-
-```bash
-npm run show:db
-```
-
-Opens the database in SQLite Browser.
-
-## Available Scripts
-
-| Command                  | Description                                    |
-| ------------------------ | ---------------------------------------------- |
-| `npm run dev`            | Start backend server with watch mode           |
-| `npm run dev:client` | Watch and compile TypeScript frontend files    |
-| `npm run build`          | Compile TypeScript to JavaScript               |
-| `npm test`               | Run test suite with Vitest                     |
-| `npm run start:all`      | Run backend and frontend watchers concurrently |
-| `npm run show:db`        | Open SQLite database in SQLite Browser         |
-
-## API Endpoints
-
-### Authentication
-
-- `POST /api/auth/register` - Register a new user
-- `POST /api/auth/login` - Login user
-- `POST /api/auth/logout` - Logout user
-
-### Tasks
-
-- `GET /api/tasks` - Get all tasks for logged-in user
-- `POST /api/tasks` - Create a new task
-- `PUT /api/tasks/:id` - Update task details
-- `PATCH /api/tasks/:id` - Update task status (completed)
-- `DELETE /api/tasks/:id` - Delete a task
-
-### Recurring Tasks
-
-- `GET /api/recurring-tasks` - Get all recurring tasks
-- `POST /api/recurring-tasks` - Create a recurring task
-- `DELETE /api/recurring-tasks/:id` - Delete a recurring task
-
-### Courses
-
-- `GET /api/courses` - Get user's courses
-- `POST /api/courses` - Create a new course
-- `DELETE /api/courses/:id` - Delete a course
-
-For detailed API documentation, see the routes defined in [app.ts](app.ts).
-
-## Database Schema
-
-### Tables
-
-**USERS**
-
-- `uid` (PK) - User ID
-- `username` (UK) - Unique username
-- `password_hash` - Hashed password
-- `salt` - Password salt
-- `created_at` - Account creation timestamp
-- `last_login` - Last login timestamp
-
-**TASKS**
-
-- `id` (PK) - Task ID
-- `uid` (FK) - User ID
-- `course_id` (FK) - Associated course (optional)
-- `title` - Task title
-- `description` - Task description
-- `type` - Task type
-- `date` - Due date
-- `completed` - Completion status
-- `created_at` - Creation timestamp
-- `updated_at` - Last update timestamp
-
-**RECURRING_TASKS**
-
-- `id` (PK) - Task ID
-- `uid` (FK) - User ID
-- `course_id` (FK) - Associated course (optional)
-- `title` - Task title
-- `description` - Task description
-- `days_of_week` - Days pattern (e.g., "1,3,5")
-- `time_hour` - Hour of day
-- `time_minute` - Minute of hour
-- `active` - Is active
-- `created_at` - Creation timestamp
-- `updated_at` - Last update timestamp
-
-**COURSES**
-
-- `id` (PK) - Course ID
-- `uid` (FK) - User ID
-- `course_name` - Course name
-- `course_code` - Course code
-- `color_code` - Hex color for UI
-- `created_at` - Creation timestamp
-
-**SESSIONS**
-
-- `sid` (PK) - Session ID
-- `uid` (FK) - User ID
-- `expires` - Session expiration timestamp
-
-**STUDY_LOGS**
-
-- `id` (PK) - Log ID
-- `uid` (FK) - User ID
-- `task_id` (FK) - Associated task (optional)
-- `start_time` - Study start timestamp
-- `end_time` - Study end timestamp
-- `duration_minutes` - Total duration
-- `notes` - Study notes
-- `created_at` - Log creation timestamp
-
-For the complete ERD, see [DATABASE_SCHEMA_ERD.md](DATABASE_SCHEMA_ERD.md).
-
-## Development Phases
-
-### Phase 1: Database Migration ✅ COMPLETED
-
-Migrated from JSON-based storage to SQLite relational database while maintaining all existing functionality.
-
-### Phase 2: Core Features (MVP) 🔄 IN PROGRESS
-
-- ✅ Task status & completion tracking
-- ✅ Task editing capabilities
-- 🔄 Recurring task scheduler expansion
-- ⏳ Complete calendar view
-
-### Phase 3: Polish & Advanced Features
-
-- Study time tracking
-- Enhanced UI/UX
-- Mobile responsiveness
-- Performance optimizations
-
-### Phase 4: Student-Specific Features
-
-- Course-based organization
-- Assignment grouping
-- Study analytics
-- Collaboration features
-
-See [plan.md](plan.md) for the detailed development roadmap.
-
-## Contributing
-
-1. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-2. Commit your changes (`git commit -m 'Add AmazingFeature'`)
-3. Push to the branch (`git push origin feature/AmazingFeature`)
-4. Open a Pull Request
+- Subscription `active` is stored and exposed in the UI, but occurrence queries and manual refresh do not currently enforce it. There is no automatic background feed refresh.
+- Refresh adds or updates supplied events; it does not remove previously imported events that disappear from a feed.
+- Per-occurrence iCal overrides (`RECURRENCE-ID`) are not applied. Recurrence exceptions are currently interpreted by local day, and extra dates use the series' time-of-day.
+- Study-time tracking, analytics, and collaboration are not implemented.
