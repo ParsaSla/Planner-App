@@ -1545,6 +1545,14 @@ button {
 .course-review { border-color: #f0b42944; background: #f0b42908; }
 .course-review summary { color: #ecd195; }
 .course-review summary span { margin-left: 8px; font-size: 12px; }
+.outline-candidate-list { display: grid; gap: 12px; margin: 16px 0; }
+.outline-candidate { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev); }
+.outline-candidate-select { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12px; font-weight: 600; }
+.outline-candidate-select input { width: 16px; height: 16px; accent-color: var(--accent); }
+.outline-candidate .course-import-controls { display: grid; grid-template-columns: minmax(160px, 2fr) minmax(140px, 1fr) minmax(110px, 0.7fr) minmax(150px, 1.2fr); align-items: end; }
+.outline-candidate .course-import-controls label { min-width: 0; }
+.outline-candidate .course-import-controls input { width: 100%; min-width: 0; }
+.outline-candidate > .course-muted, .outline-candidate > .course-prose { margin-top: 10px; }
 .course-dashboard summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .course-dashboard details[open] > summary { margin-bottom: 14px; }
 .course-dashboard details ul { padding-left: 20px; font-size: 13px; line-height: 1.7; }
@@ -1574,6 +1582,7 @@ button {
   .course-dashboard h1 { font-size: 24px; }
   .course-import input { flex-basis: 100%; }
   .assessment-head { flex-wrap: wrap; }
+  .outline-candidate .course-import-controls { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { .course-dashboard { scroll-behavior: auto; } }
 

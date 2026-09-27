@@ -12,7 +12,7 @@ import type {
   Ical,
 } from './types';
 import type { Settings } from './settings';
-import type { OutlineResult, OutlineSyncSummary, SavedOutlineResult } from '../../shared/outline';
+import type { OutlineImportCommit, OutlineImportDraft, OutlineImportPreview, OutlineResult, OutlineSyncSummary } from '../../shared/outline';
 
 class ApiError extends Error {
   status: number;
@@ -108,15 +108,21 @@ export const api = {
     return data.outline;
   },
 
-  async syncGroupOutline(id: string, signal?: AbortSignal): Promise<{ outline: OutlineResult | null; sync: OutlineSyncSummary }> {
+  async syncGroupOutline(id: string, signal?: AbortSignal): Promise<{ outline: OutlineResult | null; draft: OutlineImportDraft | null; sync: OutlineSyncSummary }> {
     return request(`/api/courses/${encodeURIComponent(id)}/outline/sync`, { method: 'POST', signal });
   },
 
-  async saveGroupOutline(id: string, url: string, signal?: AbortSignal, allowCodeMismatch = false): Promise<SavedOutlineResult> {
-    const data = await request<SavedOutlineResult>(`/api/courses/${encodeURIComponent(id)}/outline`, {
+  async saveGroupOutline(id: string, url: string, signal?: AbortSignal, allowCodeMismatch = false): Promise<OutlineImportPreview> {
+    const data = await request<OutlineImportPreview>(`/api/courses/${encodeURIComponent(id)}/outline`, {
       method: 'PUT', body: JSON.stringify({ url, allowCodeMismatch }), signal,
     });
     return data;
+  },
+
+  async commitGroupOutline(id: string, commit: OutlineImportCommit, signal?: AbortSignal): Promise<{ draft: OutlineImportDraft; sync: OutlineSyncSummary }> {
+    return request(`/api/courses/${encodeURIComponent(id)}/outline/commit`, {
+      method: 'POST', body: JSON.stringify(commit), signal,
+    });
   },
 
   async createGroup(input: GroupInput): Promise<void> {

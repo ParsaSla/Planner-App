@@ -77,3 +77,54 @@ export interface SavedOutlineResult {
     outline: OutlineResult;
     sync: OutlineSyncSummary;
 }
+
+export interface OutlineImportCandidate {
+    id: string;
+    assessmentKey: string;
+    deadline: OutlineDeadline;
+    source: 'unsw' | 'ai';
+    selected: boolean;
+    editLocalDate?: string;
+    editLocalTime?: string;
+    editTimezone?: string;
+    sourceKey?: string;
+    weeklySeries?: OutlineWeeklySeries;
+    editFirstReleaseDate?: string;
+    editLastReleaseDate?: string;
+}
+
+export interface OutlineWeeklySeries {
+    weekday: 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
+    releaseTime: string;
+    dueTime: string;
+    dueOffsetDays: number;
+    firstReleaseDate: string | null;
+    lastReleaseDate: string | null;
+    timezone: string | null;
+}
+
+export interface OutlineImportDraft {
+    id: string;
+    courseId: number;
+    sourceUrl: string;
+    createdAt: string;
+    committedAt: string | null;
+    aiStatus: 'ready' | 'unavailable' | 'failed';
+    aiMessage: string | null;
+    aiModel: string | null;
+    aiRawOutput: string | null;
+    aiReportedCandidates: number;
+    aiAcceptedCandidates: number;
+    candidates: OutlineImportCandidate[];
+}
+
+export interface OutlineImportPreview {
+    outline: OutlineResult;
+    draft: OutlineImportDraft;
+}
+
+export interface OutlineImportCommit {
+    draftId: string;
+    candidates: Array<{ id: string; selected: boolean; label: string; localDate: string; localTime: string | null; timezone: string | null;
+    firstReleaseDate?: string | null; lastReleaseDate?: string | null }>;
+}

@@ -3,7 +3,7 @@ import path from 'path';
 import {invalidateSession, validateSession, login, register} from './backend/auth';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
-import { getCourseOutline, saveCourseOutline, syncSavedCourseOutline } from './backend/api/courseOutlines';
+import { commitCourseOutlineDraft, getCourseOutline, getCourseOutlineDraft, saveCourseOutline, syncSavedCourseOutline } from './backend/api/courseOutlines';
 import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, setOneTimeCompletion, setOccurrenceCompletion, createCourse, getCourses, updateCourse, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport, addIcal, removeIcal, updateIcal, getIcal, getIcals, refreshIcal } from './backend/API';
 
 export function createApp() {
@@ -173,6 +173,16 @@ export function createApp() {
 
   app.put('/api/courses/:id/outline', async (req, res) => {
     const result = await saveCourseOutline(authenticate(req), Number(req.params.id), req.body?.url, req.body?.allowCodeMismatch);
+    res.json({ success: true, ...result });
+  });
+
+  app.get('/api/courses/:id/outline/draft', (req, res) => {
+    const draft = getCourseOutlineDraft(authenticate(req), Number(req.params.id));
+    res.json({ success: true, draft });
+  });
+
+  app.post('/api/courses/:id/outline/commit', (req, res) => {
+    const result = commitCourseOutlineDraft(authenticate(req), Number(req.params.id), req.body);
     res.json({ success: true, ...result });
   });
 

@@ -5,11 +5,19 @@ import App from '../../frontend/src/App';
 import { api, ApiError } from '../../frontend/src/api';
 import { DEFAULT_SETTINGS } from '../../frontend/src/settings';
 import { parseOutlineResponse, parseOutlineUrl } from '../../backend/api/unswOutline';
-import type { OutlineResult, SavedOutlineResult } from '../../shared/outline';
+import type { OutlineImportDraft, OutlineImportPreview, OutlineResult } from '../../shared/outline';
 import fixture from '../fixtures/unsw/comp9331-2026-t3.json';
 
 const result = parseOutlineResponse(fixture.response, parseOutlineUrl(fixture.sourceUrl), { retrievedAt: fixture.retrievedAt });
-const sync = { created: 6, updated: 0, unchanged: 0, linked: 0, skipped: 2 };
+const sync = { created: 6, updated: 0, unchanged: 0, linked: 0, skipped: 0 };
+const draft: OutlineImportDraft = { id: 'draft-1', courseId: 1, sourceUrl: fixture.sourceUrl, createdAt: '2026-09-27T00:00:00Z',
+  committedAt: null, aiStatus: 'unavailable', aiMessage: 'AI suggestions are unavailable.', aiModel: 'openrouter/free',
+  aiRawOutput: null, aiReportedCandidates: 0, aiAcceptedCandidates: 0,
+  candidates: result.assessments.flatMap(assessment => assessment.deadlines.map((deadline, index) => ({
+    id: `${assessment.key}-${index}`, assessmentKey: assessment.key, deadline, source: 'unsw' as const,
+    selected: deadline.kind === 'datetime', editLocalDate: 'localDate' in deadline ? deadline.localDate : '',
+    editLocalTime: deadline.kind === 'datetime' ? deadline.localTime : '',
+  }))) };
 let saved: OutlineResult | null;
 beforeEach(() => {
   saved = null;
@@ -18,8 +26,10 @@ beforeEach(() => {
   vi.spyOn(api, 'getGroups').mockResolvedValue([{ id: '1', name: 'Networks', code: 'COMP9331' }, { id: '2', name: 'Other course' }]);
   vi.spyOn(api, 'getSettings').mockResolvedValue(DEFAULT_SETTINGS);
   vi.spyOn(api, 'getOccurrences').mockResolvedValue([]);
-  vi.spyOn(api, 'syncGroupOutline').mockImplementation(async id => ({ outline: id === '1' ? saved : null, sync: { ...sync, created: 0, unchanged: saved ? 6 : 0 } }));
-  vi.spyOn(api, 'saveGroupOutline').mockImplementation(async () => { saved = structuredClone(result); return { outline: saved, sync }; });
+  vi.spyOn(api, 'syncGroupOutline').mockImplementation(async id => ({ outline: id === '1' ? saved : null,
+    draft: id === '1' && saved ? structuredClone(draft) : null, sync: { ...sync, created: 0, unchanged: 0 } }));
+  vi.spyOn(api, 'saveGroupOutline').mockImplementation(async () => { saved = structuredClone(result); return { outline: saved, draft: structuredClone(draft) }; });
+  vi.spyOn(api, 'commitGroupOutline').mockImplementation(async () => ({ draft: { ...structuredClone(draft), committedAt: '2026-09-27T00:01:00Z' }, sync }));
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 async function openCourse() {
@@ -37,7 +47,9 @@ describe('course dashboards', () => {
     await openCourse();
     expect(screen.getByText('Existing lab prep')).toBeTruthy();
     loadOutline();
-    await screen.findByText('Outline saved to this course.');
+    await screen.findByText('Outline saved. Review the proposed planner items before adding them.');
+    expect(screen.getByRole('heading', { name: 'Review planner items' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add selected deadlines' })).toBeTruthy();
     expect(api.saveGroupOutline).toHaveBeenCalledWith('1', fixture.sourceUrl, expect.any(AbortSignal), false);
     for (const title of ['Computer Networks and Applications', 'Assessments', 'Teaching schedule', 'Resources', 'Teaching contacts', 'Planner items']) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy();
@@ -54,6 +66,41 @@ describe('course dashboards', () => {
     fireEvent.click(screen.getByText('Existing lab prep'));
     expect(within(screen.getByRole('dialog')).getByText('Existing lab prep')).toBeTruthy();
   });
+  it('shows successful zero-candidate AI output for debugging', async () => {
+    saved = structuredClone(result);
+    const debugDraft = { ...structuredClone(draft), aiStatus: 'ready' as const, aiMessage: null,
+      aiRawOutput: '{"candidates":[]}', aiReportedCandidates: 0, aiAcceptedCandidates: 0 };
+    vi.mocked(api.syncGroupOutline).mockResolvedValueOnce({ outline: saved, draft: debugDraft, sync });
+    await openCourse();
+    expect(screen.getByText(/AI: response received/)).toBeTruthy();
+    expect(screen.getByText(/0 validated of 0 suggestions/)).toBeTruthy();
+    fireEvent.click(screen.getByText('View raw AI response'));
+    expect(screen.getByText('{"candidates":[]}')).toBeTruthy();
+  });
+  it('lets users bound and approve an AI weekly lab series', async () => {
+    const weeklyCandidate = { id: 'ai-weekly-labs', assessmentKey: 'assessment-1',
+      deadline: { kind: 'unknown' as const, label: 'Labs', raw: 'Start every Tuesday; due the following Tuesday.',
+        evidence: [{ path: 'assessment.assessment-1.submissionNotes', text: 'Start every Tuesday; due the following Tuesday.' }], assumptions: [] },
+      source: 'ai' as const, selected: false, weeklySeries: { weekday: 'TUESDAY' as const, releaseTime: '10:00', dueTime: '10:00',
+        dueOffsetDays: 7, firstReleaseDate: null, lastReleaseDate: null, timezone: 'Australia/Sydney' } };
+    const weeklyDraft = { ...structuredClone(draft), candidates: [weeklyCandidate] };
+    vi.mocked(api.saveGroupOutline).mockResolvedValueOnce({ outline: result, draft: weeklyDraft });
+    await openCourse(); loadOutline();
+    await screen.findByText('Outline saved. Review the proposed planner items before adding them.');
+    const row = document.querySelector('.outline-candidate')!;
+    expect(within(row).getByText(/Every tuesday released at 10:00; due 7 days later at 10:00/)).toBeTruthy();
+    fireEvent.click(within(row).getByRole('checkbox'));
+    const addButton = screen.getByRole('button', { name: 'Add selected deadlines' }) as HTMLButtonElement;
+    expect(addButton.disabled).toBe(true);
+    fireEvent.change(within(row).getByLabelText('First release'), { target: { value: '2026-09-29' } });
+    fireEvent.change(within(row).getByLabelText('Last release'), { target: { value: '2026-10-13' } });
+    expect(addButton.disabled).toBe(false);
+    fireEvent.click(addButton);
+    await screen.findByText('Selected deadlines were added to your planner.');
+    expect(api.commitGroupOutline).toHaveBeenCalledWith('1', expect.objectContaining({ candidates: [expect.objectContaining({
+      id: 'ai-weekly-labs', firstReleaseDate: '2026-09-29', lastReleaseDate: '2026-10-13', timezone: 'Australia/Sydney',
+    })] }), expect.any(AbortSignal));
+  });
   it('offers a warning and retries the same outline with explicit confirmation', async () => {
     vi.mocked(api.getGroups).mockResolvedValue([{ id: '1', name: 'Networks', code: 'COMP3331' }]);
     vi.mocked(api.saveGroupOutline).mockRejectedValueOnce(new ApiError(
@@ -63,9 +110,9 @@ describe('course dashboards', () => {
     const proceed = await screen.findByRole('button', { name: 'Continue anyway' });
     expect(screen.getByText('Different course codes')).toBeTruthy();
     expect(api.saveGroupOutline).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText('Outline saved to this course.')).toBeNull();
+    expect(screen.queryByText('Outline saved. Review the proposed planner items before adding them.')).toBeNull();
     fireEvent.click(proceed);
-    await screen.findByText('Outline saved to this course.');
+    await screen.findByText('Outline saved. Review the proposed planner items before adding them.');
     expect(api.saveGroupOutline).toHaveBeenLastCalledWith('1', fixture.sourceUrl, expect.any(AbortSignal), true);
     expect(screen.queryByRole('button', { name: 'Continue anyway' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'Programming Assignmnent' })).toBeTruthy();
@@ -89,7 +136,7 @@ describe('course dashboards', () => {
     expect(api.saveGroupOutline).toHaveBeenCalledTimes(1);
   });
   it('restores a saved outline when returning to the course', async () => {
-    await openCourse(); loadOutline(); await screen.findByText('Outline saved to this course.');
+    await openCourse(); loadOutline(); await screen.findByText('Outline saved. Review the proposed planner items before adding them.');
     fireEvent.click(screen.getByRole('button', { name: /Other course/ }));
     await waitFor(() => expect(screen.queryByText('Loading saved outline…')).toBeNull());
     expect(screen.queryByRole('heading', { name: 'Programming Assignmnent' })).toBeNull();
@@ -129,15 +176,15 @@ describe('course dashboards', () => {
     expect(screen.queryByRole('heading', { name: 'Programming Assignmnent' })).toBeNull();
   });
   it('ignores an old save result after switching groups and disables duplicate submits', async () => {
-    let resolveSave!: (value: SavedOutlineResult) => void;
+    let resolveSave!: (value: OutlineImportPreview) => void;
     vi.mocked(api.saveGroupOutline).mockImplementationOnce(() => new Promise(resolve => { resolveSave = resolve; }));
     await openCourse(); loadOutline();
     expect((screen.getByRole('button', { name: 'Loading outline…' }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: /Other course/ }));
     await waitFor(() => expect(screen.queryByText('Loading saved outline…')).toBeNull());
-    await act(async () => { resolveSave({ outline: result, sync }); });
+    await act(async () => { resolveSave({ outline: result, draft: structuredClone(draft) }); });
     expect(screen.queryByRole('heading', { name: 'Programming Assignmnent' })).toBeNull();
-    expect(screen.queryByText('Outline saved to this course.')).toBeNull();
+    expect(screen.queryByText('Outline saved. Review the proposed planner items before adding them.')).toBeNull();
   });
   it('supports course navigation through the small-screen selector', async () => {
     render(<App />);
@@ -161,7 +208,10 @@ describe('course dashboards', () => {
     vi.mocked(api.getItems).mockResolvedValue([{ id: '99', courseId: '1', outline_course_id: 1, title: 'Lab 1', recurrence: 'ONE_TIME',
       start_date: '2026-09-29T07:00:00Z', end_date: '2026-09-29T07:00:00Z', completed: false }]);
     loadOutline();
-    await screen.findByText('Outline saved to this course.');
+    await screen.findByText('Outline saved. Review the proposed planner items before adding them.');
+    fireEvent.click(screen.getByRole('button', { name: 'Add selected deadlines' }));
+    await screen.findByText('Selected deadlines were added to your planner.');
+    expect(api.commitGroupOutline).toHaveBeenCalledWith('1', expect.objectContaining({ draftId: 'draft-1' }), expect.any(AbortSignal));
     const items = within(document.getElementById('course-items')!);
     fireEvent.click(await items.findByText('Lab 1'));
     const dialog = within(screen.getByRole('dialog'));
@@ -170,15 +220,15 @@ describe('course dashboards', () => {
     expect(dialog.getByRole('button', { name: 'Mark as complete' })).toBeTruthy();
     expect(dialog.getByRole('button', { name: 'Delete' })).toBeTruthy();
   });
-  it('loads planner items created by automatic sync of an already saved outline', async () => {
+  it('does not backfill planner items when opening an already saved outline', async () => {
     saved = structuredClone(result);
-    vi.mocked(api.getItems).mockResolvedValueOnce([]).mockResolvedValue([{ id: '99', courseId: '1', outline_course_id: 1,
-      title: 'Lab 1', recurrence: 'ONE_TIME', start_date: '2026-09-29T07:00:00Z', end_date: '2026-09-29T07:00:00Z' }]);
+    vi.mocked(api.getItems).mockResolvedValue([]);
     await openCourse();
-    await within(document.getElementById('course-items')!).findByText('Lab 1');
+    await screen.findByRole('heading', { name: 'Programming Assignmnent' });
     expect(api.syncGroupOutline).toHaveBeenCalledWith('1', expect.any(AbortSignal));
     expect(api.saveGroupOutline).not.toHaveBeenCalled();
-    expect(api.getItems).toHaveBeenCalledTimes(2);
+    expect(api.getItems).toHaveBeenCalledTimes(1);
+    expect(within(document.getElementById('course-items')!).queryByText('Lab 1')).toBeNull();
   });
 
 });

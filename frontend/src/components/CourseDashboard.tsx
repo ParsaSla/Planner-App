@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import type { Group } from '../types';
-import type { OutlineAssessment, OutlineDeadline, OutlineLink, OutlineResult, OutlineSyncSummary } from '../../../shared/outline';
+import type { OutlineAssessment, OutlineDeadline, OutlineImportCandidate, OutlineLink, OutlineResult, OutlineSyncSummary } from '../../../shared/outline';
 
 interface Props {
   group: Group;
@@ -13,6 +13,17 @@ interface Props {
 
 function dateLabel(value: string): string {
   return new Date(`${value}T00:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+function weeklyReleaseCount(firstValue: string, lastValue: string, weekday: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(firstValue) || !/^\d{4}-\d{2}-\d{2}$/.test(lastValue)) return 0;
+  const first = new Date(`${firstValue}T00:00:00Z`);
+  const last = new Date(`${lastValue}T00:00:00Z`);
+  const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+  const difference = (last.getTime() - first.getTime()) / 86_400_000;
+  if (!Number.isFinite(difference) || difference < 0 || difference % 7 !== 0 ||
+      dayNames[first.getUTCDay()] !== weekday || dayNames[last.getUTCDay()] !== weekday) return 0;
+  const count = difference / 7 + 1;
+  return count <= 24 ? count : 0;
 }
 function deadlineLabel(deadline: OutlineDeadline): string {
   switch (deadline.kind) {
@@ -74,6 +85,8 @@ const RESOURCE_LABELS: Record<string, string> = {
 
 export default function CourseDashboard({ group, color, itemCount, onItemsChanged, children }: Props) {
   const [outline, setOutline] = useState<OutlineResult | null>(null);
+  const [draft, setDraft] = useState<Awaited<ReturnType<typeof api.syncGroupOutline>>['draft']>(null);
+  const [candidates, setCandidates] = useState<OutlineImportCandidate[]>([]);
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -90,9 +103,8 @@ export default function CourseDashboard({ group, color, itemCount, onItemsChange
     setLoading(true); setError(null); setLoadFailed(false);
     api.syncGroupOutline(group.id, request.signal).then(async result => {
       if (request.signal.aborted) return;
-      setOutline(result.outline); setUrl(result.outline?.provenance.sourceUrl ?? '');
+      setOutline(result.outline); setDraft(result.draft); setCandidates(result.draft?.candidates ?? []); setUrl(result.outline?.provenance.sourceUrl ?? '');
       setSync(result.outline ? result.sync : null);
-      if (result.outline) await onItemsChanged();
     }).catch(err => {
       if (request.signal.aborted) return;
       setError(err instanceof Error ? err.message : 'Could not load the saved course outline.'); setLoadFailed(true);
@@ -107,9 +119,8 @@ export default function CourseDashboard({ group, color, itemCount, onItemsChange
     try {
       const result = await api.saveGroupOutline(group.id, link.trim(), request.signal, allowCodeMismatch);
       if (request.signal.aborted) return;
-      setOutline(result.outline); setUrl(result.outline.provenance.sourceUrl); setSync(result.sync);
-      setMessage('Outline saved to this course.');
-      await onItemsChanged();
+      setOutline(result.outline); setDraft(result.draft); setCandidates(result.draft.candidates); setUrl(result.outline.provenance.sourceUrl); setSync(null);
+      setMessage('Outline saved. Review the proposed planner items before adding them.');
     } catch (err) {
       if (request.signal.aborted) return;
       if (err instanceof ApiError && err.code === 'COURSE_OUTLINE_CODE_MISMATCH') {
@@ -122,7 +133,57 @@ export default function CourseDashboard({ group, color, itemCount, onItemsChange
     }
   }
 
+  async function commitDraft() {
+    if (!draft || saving) return;
+    const request = new AbortController();
+    saveRequest.current = request;
+    setSaving(true); setError(null); setMessage('');
+    try {
+      const result = await api.commitGroupOutline(group.id, {
+        draftId: draft.id,
+        candidates: candidates.map(candidate => ({ id: candidate.id, selected: candidate.selected,
+          label: candidate.deadline.label,
+          localDate: candidate.editLocalDate ?? ('localDate' in candidate.deadline ? candidate.deadline.localDate : ''),
+          localTime: candidate.editLocalTime || (candidate.deadline.kind === 'datetime' ? candidate.deadline.localTime : null),
+          timezone: candidate.editTimezone || candidate.weeklySeries?.timezone || (candidate.deadline.kind === 'datetime' ? candidate.deadline.timezone : outline?.course.timezone ?? null),
+          firstReleaseDate: candidate.editFirstReleaseDate || candidate.weeklySeries?.firstReleaseDate || null,
+          lastReleaseDate: candidate.editLastReleaseDate || candidate.weeklySeries?.lastReleaseDate || null })),
+      }, request.signal);
+      if (request.signal.aborted) return;
+      setDraft(result.draft); setSync(result.sync); setMessage('Selected deadlines were added to your planner.');
+      await onItemsChanged();
+    } catch (err) {
+      if (!request.signal.aborted) setError(err instanceof Error ? err.message : 'Could not add the selected deadlines.');
+    } finally {
+      if (!request.signal.aborted) setSaving(false);
+    }
+  }
+
+  function editCandidate(id: string, update: (candidate: OutlineImportCandidate) => OutlineImportCandidate) {
+    setCandidates(current => current.map(candidate => candidate.id === id ? update(candidate) : candidate));
+  }
+
+  function updateDeadline(candidate: OutlineImportCandidate, changes: { label?: string; localDate?: string; localTime?: string }) {
+    const deadline = candidate.deadline;
+    const updated = { ...candidate,
+      editLocalDate: changes.localDate ?? candidate.editLocalDate ?? ('localDate' in deadline ? deadline.localDate : ''),
+      editLocalTime: changes.localTime ?? candidate.editLocalTime ?? (deadline.kind === 'datetime' ? deadline.localTime : ''),
+    };
+    if (deadline.kind === 'datetime') return { ...updated, deadline: { ...deadline, label: changes.label ?? deadline.label,
+      localDate: updated.editLocalDate!, localTime: updated.editLocalTime! } };
+    if (deadline.kind === 'date') return { ...updated, deadline: { ...deadline, label: changes.label ?? deadline.label } };
+    if (changes.label !== undefined) return { ...updated, deadline: { ...deadline, label: changes.label } };
+    return updated;
+  }
+
   const deadlines = outline?.assessments.flatMap(assessment => assessment.deadlines) ?? [];
+  const selectedCandidates = candidates.filter(candidate => candidate.selected);
+  const selectionReady = selectedCandidates.length === 0 || selectedCandidates.every(candidate => candidate.weeklySeries
+    ? weeklyReleaseCount(candidate.editFirstReleaseDate || candidate.weeklySeries.firstReleaseDate || '',
+      candidate.editLastReleaseDate || candidate.weeklySeries.lastReleaseDate || '', candidate.weeklySeries.weekday) > 0
+    : Boolean((candidate.editLocalDate || ('localDate' in candidate.deadline && candidate.deadline.localDate)) &&
+      (candidate.editLocalTime || (candidate.deadline.kind === 'datetime' && candidate.deadline.localTime)) &&
+      (candidate.editTimezone || (candidate.deadline.kind === 'datetime' && candidate.deadline.timezone) || outline?.course.timezone)));
   return <main className="main course-dashboard" style={{ '--course-color': color } as CSSProperties}>
     <header className="course-header">
       <p className="course-eyebrow">Course dashboard {group.code && <span> / {group.code}</span>}</p>
@@ -132,7 +193,7 @@ export default function CourseDashboard({ group, color, itemCount, onItemsChange
 
     <section className="course-card course-import" aria-labelledby="outline-import-title">
       <div><h2 id="outline-import-title">{outline ? 'Course outline' : 'Bring your course into focus'}</h2>
-        <p className="course-muted">Paste the full UNSW course outline link. Confirmed deadlines will automatically appear in your planner.</p></div>
+        <p className="course-muted">Paste a full UNSW course outline link. Proposed deadlines stay out of your planner until you review and add them.</p></div>
       <form onSubmit={event => { event.preventDefault(); if (!loading && !saving && !loadFailed) void save(url); }}>
         <label htmlFor="course-outline-link">UNSW course outline link</label>
         <div className="course-import-controls"><input id="course-outline-link" type="url" required value={url}
@@ -144,7 +205,7 @@ export default function CourseDashboard({ group, color, itemCount, onItemsChange
         <p id="outline-link-help" className="course-muted">Include the part after # so the year, term, and campus match your offering.</p>
       </form>
       {loading && <p role="status">Loading saved outline…</p>}
-      {saving && <p role="status">Fetching your outline and checking assessment dates…</p>}
+      {saving && <p role="status">Fetching the outline or applying selected deadlines…</p>}
       {message && <p className="course-success" role="status">{message}</p>}
       {mismatch && <div className="course-mismatch" role="alert">
         <strong>Different course codes</strong>
@@ -163,6 +224,57 @@ export default function CourseDashboard({ group, color, itemCount, onItemsChange
     </section>
 
     {outline && <>
+      {draft && <section className="course-card course-review" aria-labelledby="outline-review-title">
+        <div className="course-section-head"><div><h2 id="outline-review-title">Review planner items</h2>
+          <p className="course-muted">Check each deadline and edit its label, date, time, or timezone. Timed entries need a valid date, time, and timezone before they can be added.</p></div></div>
+        <div className="course-ai-diagnostics" aria-label="AI extraction diagnostics">
+          <p className="course-muted" role="status">AI: {draft.aiStatus === 'ready' ? 'response received' : draft.aiStatus === 'unavailable' ? 'not configured' : 'request failed'}
+            {' · '}Model: {draft.aiModel ?? 'none'}{' · '}{draft.aiAcceptedCandidates} validated of {draft.aiReportedCandidates} suggestions</p>
+          {draft.aiMessage && <p className="course-muted">{draft.aiMessage} Deterministic outline dates are still available for review.</p>}
+          {draft.aiRawOutput && <details><summary>View raw AI response</summary><pre className="course-raw">{draft.aiRawOutput}</pre></details>}
+        </div>
+        {draft.committedAt ? <p className="course-success" role="status">This review was added {new Date(draft.committedAt).toLocaleString()}.</p> : <>
+          <div className="outline-candidate-list">{candidates.map(candidate => {
+            const deadline = candidate.deadline;
+            const series = candidate.weeklySeries;
+            const assessmentTitle = outline.assessments.find(assessment => assessment.key === candidate.assessmentKey)?.title ?? candidate.assessmentKey;
+            const localDate = candidate.editLocalDate ?? ('localDate' in deadline ? deadline.localDate : '');
+            const localTime = candidate.editLocalTime ?? (deadline.kind === 'datetime' ? deadline.localTime : '');
+            return <article className="outline-candidate" key={candidate.id}>
+              <label className="outline-candidate-select"><input type="checkbox" checked={candidate.selected}
+                onChange={event => editCandidate(candidate.id, value => ({ ...value, selected: event.target.checked }))} />
+                <span>{candidate.source === 'ai' ? 'AI suggestion' : 'From outline'}</span></label>
+              <div className="course-import-controls">
+                <label>Planner title<input value={deadline.label} onChange={event => editCandidate(candidate.id,
+                  value => updateDeadline(value, { label: event.target.value }))} maxLength={200} /></label>
+                {series ? <>
+                  <label>First release<input type="date" value={candidate.editFirstReleaseDate ?? series.firstReleaseDate ?? ''}
+                    onChange={event => editCandidate(candidate.id, value => ({ ...value, editFirstReleaseDate: event.target.value }))} /></label>
+                  <label>Last release<input type="date" value={candidate.editLastReleaseDate ?? series.lastReleaseDate ?? ''}
+                    onChange={event => editCandidate(candidate.id, value => ({ ...value, editLastReleaseDate: event.target.value }))} /></label>
+                </> : <>
+                  <label>Date<input type="date" value={localDate} onChange={event => editCandidate(candidate.id,
+                    value => updateDeadline(value, { localDate: event.target.value }))} /></label>
+                  <label>Time<input type="time" value={localTime} onChange={event => editCandidate(candidate.id, value => {
+                    const updated = updateDeadline(value, { localTime: event.target.value });
+                    return event.target.value ? { ...updated, selected: true } : updated;
+                  })} /></label>
+                </>}
+                <label>Time zone<input value={candidate.editTimezone ?? (series?.timezone ?? (deadline.kind === 'datetime' ? deadline.timezone ?? '' : outline.course.timezone ?? ''))}
+                  placeholder="Australia/Sydney" onChange={event => editCandidate(candidate.id, value => ({ ...value, editTimezone: event.target.value }))} /></label>
+              </div>
+              {series && <p className="course-muted">Every {series.weekday.toLowerCase()} released at {series.releaseTime}; due {series.dueOffsetDays} days later at {series.dueTime}.
+                {' '}{weeklyReleaseCount(candidate.editFirstReleaseDate ?? series.firstReleaseDate ?? '', candidate.editLastReleaseDate ?? series.lastReleaseDate ?? '', series.weekday)} weekly tasks in this range.</p>}
+              <p className="course-muted">{assessmentTitle} · {deadline.raw || 'No exact date was identified'}</p>
+              {deadline.evidence.map((evidence, index) => <p className="course-prose" key={index}>{evidence.text}</p>)}
+            </article>;
+          })}</div>
+          <button className="btn primary" type="button" disabled={saving || !selectionReady} onClick={() => void commitDraft()}>
+            {saving ? 'Adding deadlines…' : candidates.some(candidate => candidate.selected) ? 'Add selected deadlines' : 'Finish review without adding'}
+          </button>
+          {candidates.length === 0 && <p className="course-muted">No calendar deadline candidates were found. The source outline remains available below.</p>}
+        </>}
+      </section>}
       <nav className="course-nav" aria-label="Course sections">
         <a href="#course-overview">Overview</a><a href="#course-assessments">Assessments</a><a href="#course-schedule">Schedule</a>
         <a href="#course-resources">Resources</a><a href="#course-contacts">Contacts</a><a href="#course-items">Planner items</a>

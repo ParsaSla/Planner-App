@@ -56,6 +56,13 @@ function initializeSQLite(dbPath: string): void {
             updated_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS course_outline_import_drafts (
+            course_id INTEGER PRIMARY KEY REFERENCES courses(id) ON DELETE CASCADE,
+            draft_id TEXT NOT NULL UNIQUE,
+            draft_json TEXT NOT NULL,
+            committed_at TEXT
+        );
+
         -- Unified planner item: a task (point in time) or an event (time-blocked span),
         -- either one-time or recurring. Two discriminator columns say which:
         --   kind       = 'TASK'  | 'EVENT'

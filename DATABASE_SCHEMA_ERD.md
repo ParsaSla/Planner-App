@@ -1,6 +1,6 @@
 # Database schema
 
-This document describes the ten tables created by [backend/db/connection.ts](backend/db/connection.ts) for a fresh database. [database_schema.sql](database_schema.sql) contains the matching standalone DDL. The default database is `data/app.db`, relative to the process working directory; the connection enables foreign keys and WAL journaling.
+This document describes the eleven tables created by [backend/db/connection.ts](backend/db/connection.ts) for a fresh database. [database_schema.sql](database_schema.sql) contains the matching standalone DDL. The default database is `data/app.db`, relative to the process working directory; the connection enables foreign keys and WAL journaling.
 
 The application creates its schema directly in TypeScript. The SQL file is a reference/bootstrap schema, not a migration script. Startup also contains limited compatibility steps for older item columns and completion keys; it is not a versioned migration framework.
 
@@ -16,6 +16,7 @@ erDiagram
     USERS ||--o| SETTINGS : configures
     COURSES |o--o{ ITEMS : groups
     COURSES ||--o| COURSE_OUTLINES : has
+    COURSES ||--o| COURSE_OUTLINE_IMPORT_DRAFTS : stages
     COURSES ||--o{ COURSE_OUTLINE_ITEMS : tracks
     ITEMS |o--o| COURSE_OUTLINE_ITEMS : links
     ICALS |o--o{ ITEMS : supplies
@@ -85,6 +86,12 @@ erDiagram
         TEXT result_json
         TEXT updated_at
     }
+    COURSE_OUTLINE_IMPORT_DRAFTS {
+        INTEGER course_id PK, FK
+        TEXT draft_id UK
+        TEXT draft_json
+        TEXT committed_at "Nullable"
+    }
     COMPLETIONS {
         INTEGER item_id PK, FK "Composite PK"
         TEXT uid FK
@@ -138,7 +145,11 @@ A `(course_id, source_key)` identifies one extracted deadline across refreshes. 
 
 `item_id` is unique and refers to the planner item. With `managed = 1`, the outline service created the item and owns its details and schedule. With `managed = 0`, it matched a pre-existing one-time item by normalized title and exact instant within the course; that item's fields remain untouched. An item deletion sets the reference to NULL, retaining a marker so automatic synchronization does not recreate the deadline. Deleting a course removes its mappings while retaining its planner items with no course association.
 
-Outline-created items have `kind = TASK`, `recurrence = ONE_TIME`, and identical start/end timestamps representing a deadline, with no invented duration. Outline updates preserve completion. Snapshot storage, deadline creation/updates, and mappings commit in one transaction. Opening a dashboard also synchronizes its saved snapshot without fetching UNSW. Unconfirmed times, unknown timezones, ambiguous identities, and deliberately deleted entries are skipped. Existing items that disappear from an outline, or whose date becomes unconfirmed, remain unchanged for manual review.
+Outline-created items have `kind = TASK`, `recurrence = ONE_TIME`, and identical start/end timestamps representing a deadline, with no invented duration. Outline updates preserve completion. Opening a dashboard reads its saved snapshot and pending draft without changing planner items. A preview stages deterministic and AI-suggested candidates; only selected, confirmed timed deadlines are synchronized after explicit review. Unconfirmed dates remain visible but cannot be added until the user supplies a valid date, time, and timezone. Existing items that disappear from an outline, or whose date becomes unconfirmed, remain unchanged for manual review.
+
+### Outline import drafts (`course_outline_import_drafts`)
+
+At most one current review draft is stored per course. `draft_id` prevents a stale preview from being committed; a newer preview replaces the previous draft. `draft_json` contains candidate edits, source references, selection state, and AI-provider status. `committed_at` marks a one-time successful approval. Ownership and cascade deletion come from the course foreign key. Candidate application and the committed marker are written in the same transaction.
 
 ### Calendar subscriptions (`icals`)
 

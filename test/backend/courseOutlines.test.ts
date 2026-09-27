@@ -48,6 +48,19 @@ function request(method: string, body?: unknown, session = cookie) {
   return fetch(`${base}/api/courses/${id}/outline`, { method,
     headers: { Cookie: session, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
 }
+async function approve(response: Response) {
+  const preview = await response.json();
+  const approval = await fetch(`${base}/api/courses/${id}/outline/commit`, { method: 'POST',
+    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ draftId: preview.draft.id, candidates: preview.draft.candidates.map((candidate: any) => ({
+      id: candidate.id, selected: candidate.selected, label: candidate.deadline.label,
+      localDate: candidate.editLocalDate ?? ('localDate' in candidate.deadline ? candidate.deadline.localDate : ''),
+      localTime: candidate.editLocalTime || (candidate.deadline.kind === 'datetime' ? candidate.deadline.localTime : null),
+      timezone: candidate.editTimezone || (candidate.deadline.kind === 'datetime' ? candidate.deadline.timezone : null),
+    })) }),
+  });
+  return { preview, approval, result: await approval.json() };
+}
 
 describe('course outline persistence and HTTP ownership', () => {
   it('returns null for a course with no saved outline', async () => {
@@ -56,19 +69,88 @@ describe('course outline persistence and HTTP ownership', () => {
     expect(await response.json()).toEqual({ success: true, outline: null });
     expect(download).not.toHaveBeenCalled();
   });
-  it('saves the complete extraction and reloads it after a database reopen with automatic deadline items', async () => {
+  it('saves the complete extraction without calendar writes until explicit approval', async () => {
     const response = await request('PUT', { url: fixture.sourceUrl });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ success: true, outline: result, sync: { created: 6, updated: 0, skipped: 2 } });
+    const preview = await response.json();
+    expect(preview).toMatchObject({ success: true, outline: result, draft: { courseId: id, committedAt: null } });
+    expect(getItems(uid)).toEqual([]);
     closeDB(); initializeDB(dbPath);
     expect(await (await request('GET')).json()).toEqual({ success: true, outline: result });
     expect(download).toHaveBeenCalledTimes(1);
+    expect(getItems(uid)).toEqual([]);
+    const pending = await fetch(`${base}/api/courses/${id}/outline/draft`, { headers: { Cookie: cookie } });
+    const approved = await approve(pending);
+    expect(approved.result.sync).toMatchObject({ created: 6, updated: 0, skipped: 0 });
     expect(getItems(uid)).toHaveLength(6);
     expect(getCourses(uid)[0]).toMatchObject({ course_name: 'Networks', course_code: 'COMP9331' });
   });
   it.each(['GET', 'PUT'])('requires authentication for %s', async method => {
     expect((await request(method, method === 'PUT' ? { url: fixture.sourceUrl, allowCodeMismatch: true } : undefined, '')).status).toBe(401);
     expect(download).not.toHaveBeenCalled();
+  });
+  it('does not mutate items during preview and rejects committing the same draft twice', async () => {
+    const previewResponse = await request('PUT', { url: fixture.sourceUrl });
+    const preview = await previewResponse.json();
+    expect(getItems(uid)).toEqual([]);
+    const first = await approve(new Response(JSON.stringify(preview), { headers: { 'Content-Type': 'application/json' } }));
+    expect(first.approval.status).toBe(200);
+    expect(getItems(uid)).toHaveLength(6);
+    const repeated = await fetch(`${base}/api/courses/${id}/outline/commit`, { method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draftId: preview.draft.id, candidates: preview.draft.candidates.map((candidate: any) => ({
+        id: candidate.id, selected: candidate.selected, label: candidate.deadline.label,
+        localDate: candidate.editLocalDate ?? ('localDate' in candidate.deadline ? candidate.deadline.localDate : ''),
+        localTime: candidate.editLocalTime || (candidate.deadline.kind === 'datetime' ? candidate.deadline.localTime : null),
+        timezone: candidate.editTimezone || (candidate.deadline.kind === 'datetime' ? candidate.deadline.timezone : null),
+      })) }),
+    });
+    expect(repeated.status).toBe(409);
+    expect(getItems(uid)).toHaveLength(6);
+  });
+  it('allows a user to resolve a week-range candidate with an explicit date and time', async () => {
+    const preview = await (await request('PUT', { url: fixture.sourceUrl })).json();
+    const range = preview.draft.candidates.find((candidate: any) => candidate.deadline.kind === 'week-range');
+    expect(range).toBeTruthy();
+    const candidates = preview.draft.candidates.map((candidate: any) => ({
+      id: candidate.id, selected: candidate.id === range.id,
+      label: candidate.id === range.id ? 'Midterm exam' : candidate.deadline.label,
+      localDate: candidate.id === range.id ? '2026-10-26' : '',
+      localTime: candidate.id === range.id ? '09:00' : null,
+      timezone: candidate.id === range.id ? 'Australia/Sydney' : null,
+    }));
+    const response = await fetch(`${base}/api/courses/${id}/outline/commit`, { method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draftId: preview.draft.id, candidates }),
+    });
+    expect(response.status).toBe(200);
+    expect(getItems(uid)).toHaveLength(1);
+    expect(getItems(uid)[0]).toMatchObject({ title: 'Midterm exam', start_date: '2026-10-25T22:00:00.000Z', timezone: 'Australia/Sydney' });
+  });
+  it('expands a reviewed weekly lab series into following-Tuesday due tasks', async () => {
+    const preview = await (await request('PUT', { url: fixture.sourceUrl })).json();
+    const raw = 'Start Date 10:00 AM, each Tuesday. Due Date 10:00 AM, the following Tuesday.';
+    const candidate = { id: 'ai-series-assessment-1-1', assessmentKey: 'assessment-1',
+      deadline: { kind: 'unknown', label: 'Labs', raw, evidence: [{ path: 'assessment.assessment-1.submissionNotes', text: raw }], assumptions: [] },
+      source: 'ai', selected: false, sourceKey: 'stable-labs-series', weeklySeries: {
+        weekday: 'TUESDAY', releaseTime: '10:00', dueTime: '10:00', dueOffsetDays: 7,
+        firstReleaseDate: null, lastReleaseDate: null, timezone: 'Australia/Sydney',
+      } };
+    const stagedDraft = { ...preview.draft, candidates: [candidate] };
+    getSQLiteDB().prepare('UPDATE course_outline_import_drafts SET draft_json = ? WHERE course_id = ?')
+      .run(JSON.stringify(stagedDraft), id);
+    const response = await fetch(`${base}/api/courses/${id}/outline/commit`, { method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draftId: stagedDraft.id, candidates: [{ id: candidate.id, selected: true, label: 'Labs',
+        localDate: '', localTime: null, timezone: 'Australia/Sydney',
+        firstReleaseDate: '2026-09-29', lastReleaseDate: '2026-10-13' }] }),
+    });
+    expect(response.status).toBe(200);
+    expect((await response.json()).sync.created).toBe(3);
+    expect(getItems(uid).map(item => item.start_date)).toEqual([
+      '2026-10-05T23:00:00.000Z', '2026-10-12T23:00:00.000Z', '2026-10-19T23:00:00.000Z',
+    ]);
+    expect(getItems(uid).every(item => item.title === 'Labs' && item.timezone === 'Australia/Sydney')).toBe(true);
   });
   it.each(['GET', 'PUT'])('rejects another user’s course for %s before fetching', async method => {
     register('outsider', 'Password123');
@@ -117,11 +199,14 @@ describe('course outline persistence and HTTP ownership', () => {
     expect((await (await request('GET')).json()).outline).toEqual(result);
   });
   it('replaces one snapshot on refresh and cascades it when the course is deleted', async () => {
-    await request('PUT', { url: fixture.sourceUrl });
+    await approve(await request('PUT', { url: fixture.sourceUrl }));
     const updated = structuredClone(result); updated.course.description = 'Updated description';
     download.mockResolvedValueOnce(updated);
-    expect((await request('PUT', { url: fixture.sourceUrl })).status).toBe(200);
+    const refresh = await request('PUT', { url: fixture.sourceUrl });
+    expect(refresh.status).toBe(200);
+    expect((await refresh.json()).draft.committedAt).toBeNull();
     expect((await (await request('GET')).json()).outline.course.description).toBe('Updated description');
+    expect(getItems(uid)).toHaveLength(6);
     expect(getSQLiteDB().prepare('SELECT * FROM course_outlines').all()).toHaveLength(1);
     deleteCourse(uid, id);
     expect(getSQLiteDB().prepare('SELECT * FROM course_outlines').all()).toHaveLength(0);
@@ -132,7 +217,7 @@ describe('course outline persistence and HTTP ownership', () => {
     expect(getSQLiteDB().prepare('SELECT * FROM course_outlines').all()).toHaveLength(0);
   });
   it('creates five separate lab deadlines and one assignment, with timezone-aware occurrences', async () => {
-    await request('PUT', { url: fixture.sourceUrl });
+    await approve(await request('PUT', { url: fixture.sourceUrl }));
     const items = getItems(uid);
     const labs = items.filter(item => /^Lab \d+$/.test(item.title));
     expect(labs).toHaveLength(5);
@@ -150,33 +235,53 @@ describe('course outline persistence and HTTP ownership', () => {
     expect(items.some(item => /exam/i.test(item.title))).toBe(false);
   });
   it('does not duplicate deadlines when refreshing or when assessment order changes', async () => {
-    await request('PUT', { url: fixture.sourceUrl });
+    await approve(await request('PUT', { url: fixture.sourceUrl }));
     const ids = getItems(uid).map(item => item.id);
     const updated = structuredClone(result); updated.assessments.reverse();
     updated.assessments.forEach((assessment, index) => { assessment.key = `assessment-${index}`; });
     download.mockResolvedValueOnce(updated);
     const response = await request('PUT', { url: fixture.sourceUrl });
-    expect((await response.json()).sync).toMatchObject({ created: 0, unchanged: 6 });
+    const approved = await approve(response);
+    expect(approved.result.sync).toMatchObject({ created: 0, unchanged: 6 });
     expect(getItems(uid).map(item => item.id)).toEqual(ids);
   });
+  it('keeps the same managed item when a reviewed title is edited and later refreshed', async () => {
+    const response = await request('PUT', { url: fixture.sourceUrl });
+    const preview = await response.json();
+    const target = preview.draft.candidates.find((candidate: any) => candidate.id === 'unsw-assessment-1-1');
+    const edited = { ...preview, draft: { ...preview.draft, candidates: preview.draft.candidates.map((candidate: any) => ({
+      ...candidate, selected: candidate.id === target.id,
+      deadline: candidate.id === target.id ? { ...candidate.deadline, label: 'My custom assignment title' } : candidate.deadline,
+    })) } };
+    await approve(new Response(JSON.stringify(edited), { headers: { 'Content-Type': 'application/json' } }));
+    const customItem = getItems(uid).find(item => item.title === 'My custom assignment title')!;
+    const refreshed = await request('PUT', { url: fixture.sourceUrl });
+    const approved = await approve(refreshed);
+    expect(approved.result.sync).toMatchObject({ created: 5, updated: 1 });
+    expect(getItems(uid).find(item => item.id === customItem.id)?.title).toBe('Programming Assignmnent');
+    expect(getItems(uid)).toHaveLength(6);
+  });
   it('updates a changed deadline without resetting completion or item identity', async () => {
-    await request('PUT', { url: fixture.sourceUrl });
+    await approve(await request('PUT', { url: fixture.sourceUrl }));
     const original = getItems(uid).find(item => item.title === 'Lab 1')!;
     setOneTimeCompletion(uid, original.id, true);
     const updated = structuredClone(result);
     Object.assign(updated.assessments[1].deadlines[0], { localDate: '2026-09-30', utc: '2026-09-30T07:00:00.000Z' });
     download.mockResolvedValueOnce(updated);
     const response = await request('PUT', { url: fixture.sourceUrl });
-    expect((await response.json()).sync).toMatchObject({ created: 0, updated: 1 });
+    const approved = await approve(response);
+    expect(approved.result.sync).toMatchObject({ created: 0, updated: 1 });
     expect(getItems(uid).find(item => item.id === original.id)).toMatchObject({ completed: true, start_date: '2026-09-30T07:00:00.000Z' });
   });
-  it('keeps deleted deadlines removed on automatic sync and refresh', async () => {
-    await request('PUT', { url: fixture.sourceUrl });
+  it('keeps deleted deadlines removed on read-only load and confirmed refresh', async () => {
+    await approve(await request('PUT', { url: fixture.sourceUrl }));
     deleteItem(uid, getItems(uid).find(item => item.title === 'Lab 1')!.id);
-    await request('PUT', { url: fixture.sourceUrl });
+    const refreshed = await request('PUT', { url: fixture.sourceUrl });
+    expect(getItems(uid)).toHaveLength(5);
+    await approve(refreshed);
     const response = await fetch(`${base}/api/courses/${id}/outline/sync`, { method: 'POST', headers: { Cookie: cookie } });
     expect(response.status).toBe(200);
-    expect((await response.json()).sync).toMatchObject({ created: 0, skipped: 3 });
+    expect((await response.json()).sync).toMatchObject({ created: 0, skipped: 0 });
     expect(getItems(uid)).toHaveLength(5);
     expect(getItems(uid).some(item => item.title === 'Lab 1')).toBe(false);
   });
@@ -184,13 +289,14 @@ describe('course outline persistence and HTTP ownership', () => {
     const existing = createItemRow({ uid, course_id: id, kind: 'TASK', recurrence: 'ONE_TIME', title: 'COMP9331 Lab 1 deadline',
       description: 'Personal notes', start_date: '2026-09-29T07:00:00Z', end_date: '2026-09-29T07:30:00Z', completed: 1, created_at: new Date().toISOString() });
     const response = await request('PUT', { url: fixture.sourceUrl });
-    expect((await response.json()).sync).toMatchObject({ created: 5, linked: 1 });
+    const approved = await approve(response);
+    expect(approved.result.sync).toMatchObject({ created: 5, linked: 1 });
     expect(getItems(uid)).toHaveLength(6);
     expect(getItems(uid).find(item => item.id === existing)).toMatchObject({ description: 'Personal notes', completed: true, outline_course_id: undefined });
-    await request('PUT', { url: fixture.sourceUrl });
+    await approve(await request('PUT', { url: fixture.sourceUrl }));
     expect(getItems(uid)).toHaveLength(6);
   });
-  it('backfills a previously saved outline without downloading it again', async () => {
+  it('loads a previously saved outline without backfilling calendar items', async () => {
     getSQLiteDB().prepare('INSERT INTO course_outlines (course_id, result_json, updated_at) VALUES (?, ?, ?)')
       .run(id, JSON.stringify(result), new Date().toISOString());
     const url = `${base}/api/courses/${id}/outline/sync`;
@@ -198,26 +304,29 @@ describe('course outline persistence and HTTP ownership', () => {
     register('syncoutsider', 'Password123');
     expect((await fetch(url, { method: 'POST', headers: { Cookie: `SID=${login('syncoutsider', 'Password123')}` } })).status).toBe(404);
     const response = await fetch(url, { method: 'POST', headers: { Cookie: cookie } });
-    expect((await response.json()).sync.created).toBe(6);
+    expect((await response.json()).sync.created).toBe(0);
     expect(download).not.toHaveBeenCalled();
-    expect(getItems(uid)).toHaveLength(6);
+    expect(getItems(uid)).toHaveLength(0);
   });
   it('protects outline-managed details while allowing completion and deletion', async () => {
-    await request('PUT', { url: fixture.sourceUrl });
+    await approve(await request('PUT', { url: fixture.sourceUrl }));
     const item = getItems(uid)[0];
     const response = await fetch(`${base}/api/items/${item.id}`, { method: 'PUT', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Changed', recurrence: 'ONE_TIME', start_date: item.start_date, end_date: item.end_date }) });
     expect(response.status).toBe(409);
     setOneTimeCompletion(uid, item.id, true);
-    expect(getItems(uid).find(value => value.id === item.id)?.completed).toBe(true);
+    expect(getItems(uid).find(value => value.id === item.id)).toMatchObject({ recurrence: 'ONE_TIME', completed: true });
     deleteItem(uid, item.id);
     expect(getItems(uid)).toHaveLength(5);
   });
   it('rolls back both items and snapshot if importing fails midway', async () => {
     getSQLiteDB().exec("CREATE TRIGGER fail_outline_item BEFORE INSERT ON items WHEN NEW.title = 'Lab 2' BEGIN SELECT RAISE(ABORT, 'test failure'); END;");
-    expect((await request('PUT', { url: fixture.sourceUrl })).status).toBe(500);
+    const preview = await request('PUT', { url: fixture.sourceUrl });
+    expect(preview.status).toBe(200);
+    const { approval } = await approve(preview);
+    expect(approval.status).toBe(500);
     expect(getItems(uid)).toEqual([]);
-    expect((await (await request('GET')).json()).outline).toBeNull();
+    expect((await (await request('GET')).json()).outline).toEqual(result);
     expect(getSQLiteDB().prepare('SELECT * FROM course_outline_items').all()).toEqual([]);
   });
 

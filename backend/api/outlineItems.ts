@@ -11,6 +11,11 @@ function normalized(value: string): string {
 function titleIdentity(value: string): string {
     return normalized(value).replace(/\b[a-z]{4}\s?\d{4}\b/g, '').replace(/\b(?:due|deadline|submission)\b/g, '').replace(/\s+/g, ' ').trim();
 }
+export function outlineDeadlineSourceKey(course: OutlineResult['course'], assessmentTitle: string, deadlineLabel: string): string {
+    const offering = [course.year, course.term, course.teachingPeriod, course.deliveryLocation,
+        course.deliveryMode, course.deliveryFormat, course.activityGroupId];
+    return JSON.stringify([...offering, normalized(assessmentTitle), normalized(deadlineLabel)]);
+}
 function description(result: OutlineResult, assessment: OutlineAssessment, deadline: OutlineDeadline): string {
     return [
         assessment.description,
@@ -26,16 +31,14 @@ function description(result: OutlineResult, assessment: OutlineAssessment, deadl
 }
 
 /** Called inside a transaction by the outline service. Never fetches or changes completion. */
-export function syncOutlineItems(uid: string, courseId: number, result: OutlineResult): OutlineSyncSummary {
+export function syncOutlineItems(uid: string, courseId: number, result: OutlineResult, sourceKeyOverrides = new Map<string, string>()): OutlineSyncSummary {
     const db = getSQLiteDB();
     const summary: OutlineSyncSummary = { created: 0, updated: 0, unchanged: 0, linked: 0, skipped: 0 };
     const course = result.course;
     // A group's aliases share identity. Dates and response array positions deliberately do not.
-    const offering = [course.year, course.term, course.teachingPeriod, course.deliveryLocation,
-        course.deliveryMode, course.deliveryFormat, course.activityGroupId];
-    const candidates = result.assessments.flatMap(assessment => assessment.deadlines.map(deadline => ({
+    const candidates = result.assessments.flatMap(assessment => assessment.deadlines.map((deadline, index) => ({
         assessment, deadline,
-        key: JSON.stringify([...offering, normalized(assessment.title), normalized(deadline.label)]),
+        key: sourceKeyOverrides.get(`${assessment.key}:${index}`) ?? outlineDeadlineSourceKey(course, assessment.title, deadline.label),
     })));
     const counts = new Map<string, number>();
     for (const candidate of candidates) counts.set(candidate.key, (counts.get(candidate.key) ?? 0) + 1);

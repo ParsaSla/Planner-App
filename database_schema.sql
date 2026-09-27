@@ -45,6 +45,14 @@ CREATE TABLE IF NOT EXISTS course_outlines (
   updated_at TEXT NOT NULL
 );
 
+-- One current outline review per course; a newer preview replaces the previous draft.
+CREATE TABLE IF NOT EXISTS course_outline_import_drafts (
+  course_id INTEGER PRIMARY KEY REFERENCES courses(id) ON DELETE CASCADE,
+  draft_id TEXT NOT NULL UNIQUE,
+  draft_json TEXT NOT NULL,
+  committed_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS icals (
   id INTEGER PRIMARY KEY,
   uid TEXT NOT NULL,
