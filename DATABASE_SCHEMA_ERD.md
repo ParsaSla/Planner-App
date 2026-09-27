@@ -1,6 +1,6 @@
 # Database schema
 
-This document describes the eight tables created by [backend/db/connection.ts](backend/db/connection.ts) for a fresh database. [database_schema.sql](database_schema.sql) contains the matching standalone DDL. The default database is `data/app.db`, relative to the process working directory; the connection enables foreign keys and WAL journaling.
+This document describes the ten tables created by [backend/db/connection.ts](backend/db/connection.ts) for a fresh database. [database_schema.sql](database_schema.sql) contains the matching standalone DDL. The default database is `data/app.db`, relative to the process working directory; the connection enables foreign keys and WAL journaling.
 
 The application creates its schema directly in TypeScript. The SQL file is a reference/bootstrap schema, not a migration script. Startup also contains limited compatibility steps for older item columns and completion keys; it is not a versioned migration framework.
 
@@ -15,6 +15,9 @@ erDiagram
     USERS ||--o{ COMPLETIONS : records
     USERS ||--o| SETTINGS : configures
     COURSES |o--o{ ITEMS : groups
+    COURSES ||--o| COURSE_OUTLINES : has
+    COURSES ||--o{ COURSE_OUTLINE_ITEMS : tracks
+    ITEMS |o--o| COURSE_OUTLINE_ITEMS : links
     ICALS |o--o{ ITEMS : supplies
     ITEMS ||--o{ COMPLETIONS : has
     SETTINGS ||--o{ SETTINGS_TERM_DATES : contains
@@ -71,6 +74,17 @@ erDiagram
         TEXT created_at
         TEXT updated_at "Nullable"
     }
+    COURSE_OUTLINE_ITEMS {
+        INTEGER course_id PK, FK
+        TEXT source_key PK
+        INTEGER item_id FK, UK "Nullable; deleted item marker"
+        INTEGER managed
+    }
+    COURSE_OUTLINES {
+        INTEGER course_id PK, FK
+        TEXT result_json
+        TEXT updated_at
+    }
     COMPLETIONS {
         INTEGER item_id PK, FK "Composite PK"
         TEXT uid FK
@@ -114,6 +128,18 @@ erDiagram
 
 `courses` stores a required `course_name`, optional `course_code` and `color_code`, owner, and creation timestamp. The frontend calls courses **groups**. Deleting a course clears `items.course_id` while retaining the items.
 
+### Saved course outlines (`course_outlines`)
+
+Each course has at most one saved UNSW outline. `result_json` stores the complete extraction, including source URL, retrieval/publication timestamps, original response fields, and date evidence. `updated_at` records when the snapshot was saved. Ownership comes from the parent course and is checked before fetching, reading, or replacing a snapshot. Failed fetches retain the previous snapshot. Deleting a course cascades to its outline. Startup creates this table additively for existing databases; it does not alter existing course or item rows.
+
+### Outline deadline links (`course_outline_items`)
+
+A `(course_id, source_key)` identifies one extracted deadline across refreshes. The source key combines the offering (year, term, teaching period, location, mode, format, activity group) with normalized assessment title and deadline label. Course aliases, response array positions, and deadline dates are not part of that identity. Changing an assessment title substantially may be treated as a new assessment.
+
+`item_id` is unique and refers to the planner item. With `managed = 1`, the outline service created the item and owns its details and schedule. With `managed = 0`, it matched a pre-existing one-time item by normalized title and exact instant within the course; that item's fields remain untouched. An item deletion sets the reference to NULL, retaining a marker so automatic synchronization does not recreate the deadline. Deleting a course removes its mappings while retaining its planner items with no course association.
+
+Outline-created items have `kind = TASK`, `recurrence = ONE_TIME`, and identical start/end timestamps representing a deadline, with no invented duration. Outline updates preserve completion. Snapshot storage, deadline creation/updates, and mappings commit in one transaction. Opening a dashboard also synchronizes its saved snapshot without fetching UNSW. Unconfirmed times, unknown timezones, ambiguous identities, and deliberately deleted entries are skipped. Existing items that disappear from an outline, or whose date becomes unconfirmed, remain unchanged for manual review.
+
 ### Calendar subscriptions (`icals`)
 
 `icals` stores the feed URL, owner, active flag, and `last_imported`. The timestamp is set when the subscription is created and updated on successful import; creating a subscription row alone does not fetch events.
@@ -122,7 +148,7 @@ The active flag is currently stored metadata: item queries and manual refresh do
 
 ### Items
 
-`items` holds manual and imported planner entries. `recurrence` is the operative discriminator (`ONE_TIME` or `RECURRING`). Although the schema retains `kind`, current manual writes use an empty string and imports use `EVENT`; the current editor does not offer a separate TASK/EVENT mode.
+`items` holds manual and imported planner entries. `recurrence` is the operative discriminator (`ONE_TIME` or `RECURRING`). Although the schema retains `kind`, current manual writes use an empty string, iCal imports use `EVENT`, and outline deadlines use `TASK`; the current editor does not offer a separate TASK/EVENT mode.
 
 | Column(s) | Current storage behavior |
 | --- | --- |
@@ -170,9 +196,9 @@ User isolation is implemented by API ownership checks and queries scoped to `uid
 | Deleted row | Database effect |
 | --- | --- |
 | User | Cascade to sessions, courses, subscriptions, items, completions, and settings; settings deletion also removes term dates. |
-| Course | Set referencing items' `course_id` to NULL. |
+| Course | Set referencing items' `course_id` to NULL and delete its saved outline and deadline mappings. |
 | Subscription | Cascade to imported items, then their completions. |
-| Item | Cascade to its recurring completion rows. |
+| Item | Cascade to its recurring completion rows; set any outline mapping’s `item_id` to NULL. |
 | Settings | Cascade to its term-date rows. |
 
 These actions depend on `PRAGMA foreign_keys = ON`, which the application and standalone schema both enable.

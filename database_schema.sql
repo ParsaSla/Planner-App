@@ -38,6 +38,13 @@ CREATE TABLE IF NOT EXISTS courses (
   FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
 );
 
+-- One saved outline snapshot per course. Ownership is inherited from courses.
+CREATE TABLE IF NOT EXISTS course_outlines (
+  course_id INTEGER PRIMARY KEY REFERENCES courses(id) ON DELETE CASCADE,
+  result_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS icals (
   id INTEGER PRIMARY KEY,
   uid TEXT NOT NULL,
@@ -78,6 +85,15 @@ CREATE TABLE IF NOT EXISTS items (
 );
 
 -- Presence of a row means the recurring occurrence is complete.
+-- Maps an outline deadline to one planner item; NULL item_id remembers user deletion.
+CREATE TABLE IF NOT EXISTS course_outline_items (
+  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  source_key TEXT NOT NULL,
+  item_id INTEGER UNIQUE REFERENCES items(id) ON DELETE SET NULL,
+  managed INTEGER NOT NULL, -- 1 = outline-created; 0 = matched pre-existing item.
+  PRIMARY KEY (course_id, source_key)
+);
+
 CREATE TABLE IF NOT EXISTS completions (
   item_id INTEGER NOT NULL,
   uid TEXT NOT NULL,

@@ -18,6 +18,7 @@ export interface ItemRow {
     timezone: string | null;     // IANA TZID for wall-clock/recurrence; NULL = floating/UTC
     all_day: number | null;      // 1 = all-day (date-only) event; NULL/0 = timed
     source_uid: number | null;
+    outline_course_id?: number | null; // Computed from the managed outline mapping.
     ical_uid: string | null;     // iCal source VEVENT UID; NULL for manual rows
     rrule: string | null;        // iCal RECURRING: raw RRULE value; NULL otherwise
     exdate: string | null;       // iCal RECURRING: JSON array of excluded ISO datetimes
@@ -100,7 +101,9 @@ export function createItemRow(item: {
 
 export function getItemsByUID(uid: string): ItemRow[] {
     const db = getSQLiteDB();
-    return db.prepare<{ uid: string }, ItemRow>('SELECT * FROM items WHERE uid = @uid ORDER BY created_at ASC').all({ uid });
+    return db.prepare<{ uid: string }, ItemRow>(`SELECT items.*, oi.course_id AS outline_course_id FROM items
+        LEFT JOIN course_outline_items oi ON oi.item_id = items.id AND oi.managed = 1
+        WHERE items.uid = @uid ORDER BY items.created_at ASC`).all({ uid });
 }
 
 /** All items imported from a given iCal subscription (by icals.id). */
@@ -113,7 +116,9 @@ export function getItemsBySourceUid(uid: string, sourceUid: number): ItemRow[] {
 
 export function getItemById(uid: string, itemId: number): ItemRow | null {
     const db = getSQLiteDB();
-    const row = db.prepare<{ uid: string; id: number }, ItemRow>('SELECT * FROM items WHERE uid = @uid AND id = @id').get({ uid, id: itemId });
+    const row = db.prepare<{ uid: string; id: number }, ItemRow>(`SELECT items.*, oi.course_id AS outline_course_id FROM items
+        LEFT JOIN course_outline_items oi ON oi.item_id = items.id AND oi.managed = 1
+        WHERE items.uid = @uid AND items.id = @id`).get({ uid, id: itemId });
     return row || null;
 }
 

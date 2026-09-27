@@ -12,10 +12,11 @@ import type {
   Ical,
 } from './types';
 import type { Settings } from './settings';
+import type { OutlineResult, OutlineSyncSummary, SavedOutlineResult } from '../../shared/outline';
 
 class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, public readonly code?: string) {
     super(message);
     this.status = status;
   }
@@ -41,7 +42,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok || (body && body.success === false)) {
-    throw new ApiError(body?.error || `Request failed (${res.status})`, res.status);
+    throw new ApiError(body?.error || `Request failed (${res.status})`, res.status, body?.code);
   }
   return body as T;
 }
@@ -100,6 +101,22 @@ export const api = {
       code: c.course_code || undefined,
       color: c.color_code || undefined,
     }));
+  },
+
+  async getGroupOutline(id: string, signal?: AbortSignal): Promise<OutlineResult | null> {
+    const data = await request<{ outline: OutlineResult | null }>(`/api/courses/${encodeURIComponent(id)}/outline`, { signal });
+    return data.outline;
+  },
+
+  async syncGroupOutline(id: string, signal?: AbortSignal): Promise<{ outline: OutlineResult | null; sync: OutlineSyncSummary }> {
+    return request(`/api/courses/${encodeURIComponent(id)}/outline/sync`, { method: 'POST', signal });
+  },
+
+  async saveGroupOutline(id: string, url: string, signal?: AbortSignal, allowCodeMismatch = false): Promise<SavedOutlineResult> {
+    const data = await request<SavedOutlineResult>(`/api/courses/${encodeURIComponent(id)}/outline`, {
+      method: 'PUT', body: JSON.stringify({ url, allowCodeMismatch }), signal,
+    });
+    return data;
   },
 
   async createGroup(input: GroupInput): Promise<void> {

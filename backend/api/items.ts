@@ -23,6 +23,7 @@ interface ItemBase {
     timezone?: string;
     // True for a date-only (all-day) event.
     allDay?: boolean;
+    outline_course_id?: number;      // Managed by a saved course outline.
     source_uid?: number;             // icals.id when imported from a subscription
     ical_uid?: string;               // source VEVENT UID; present only on iCal-imported rows
     created_at: string;
@@ -223,6 +224,7 @@ function mapItemRowToItem(itemRow: ItemRow): Item {
         allDay: itemRow.all_day === 1 ? true : undefined,
         source_uid: itemRow.source_uid !== null ? itemRow.source_uid : undefined,
         ical_uid: itemRow.ical_uid ?? undefined,
+        outline_course_id: itemRow.outline_course_id ?? undefined,
         created_at: itemRow.created_at,
         updated_at: itemRow.updated_at ?? undefined,
     };
@@ -300,6 +302,9 @@ export function updateItem(
     requireUser(uid);
     const existing = getItemById(uid, id);
     if (!existing) throw new AppError('Item not found', ERRORS.ITEM_NOT_FOUND);
+    if (existing.outline_course_id != null) {
+        throw new AppError('Outline deadline details cannot be edited directly. Refresh the course outline to update them.', ERRORS.ITEM_READ_ONLY);
+    }
     if (existing.source_uid !== null) {
         throw new AppError('Managed by your calendar subscription. Imported items cannot be edited.', ERRORS.ITEM_READ_ONLY);
     }

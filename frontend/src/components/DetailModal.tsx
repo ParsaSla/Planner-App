@@ -30,12 +30,12 @@ export default function DetailModal({ store, target, onClose, onEdit }: Props) {
   // after a toggle (the target itself is a click-time snapshot).
   const item = store.items.find((it) => it.id === target.item.id) ?? target.item;
   const isRecurring = item.recurrence === 'RECURRING';
-  const imported = item.source_uid != null;
+  const imported = item.source_uid != null || item.outline_course_id != null;
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   async function deleteImported() {
-    if (!window.confirm(`Delete "${item.title}"? A feed refresh may recreate it.`)) return;
+    if (!window.confirm(`Delete "${item.title}"? ${item.outline_course_id != null ? "It will stay removed when the outline is refreshed." : "A feed refresh may recreate it."}`)) return;
     setDeleting(true);
     setError(null);
     try {
@@ -88,7 +88,7 @@ export default function DetailModal({ store, target, onClose, onEdit }: Props) {
         </div>
 
         <div className="modal-body detail-body">
-          {imported && <p>Managed by your calendar subscription.</p>}
+          {imported && <p>{item.outline_course_id != null ? 'Managed by your course outline.' : 'Managed by your calendar subscription.'}</p>}
           {error && <p role="alert">{error}</p>}
           {toggle && (
             <button
@@ -162,7 +162,7 @@ function timingLabel(item: Item, occurrence?: ItemOccurrence): string {
     const day = relativeDay(occurrenceDay(occurrence.start, occurrence.allDay));
     if (occurrence.allDay) return `${day} · All day`;
     const end = new Date(occurrence.end);
-    const range = isNaN(end.getTime()) ? formatTime(start) : `${formatTime(start)}–${formatTime(end)}`;
+    const range = isNaN(end.getTime()) || end.getTime() === start.getTime() ? formatTime(start) : `${formatTime(start)}–${formatTime(end)}`;
     return `${day} · ${range}`;
   }
   if (item.recurrence === 'RECURRING') {
@@ -177,5 +177,5 @@ function timingLabel(item: Item, occurrence?: ItemOccurrence): string {
   const start = new Date(item.start_date);
   if (item.allDay) return `${relativeDay(occurrenceDay(item.start_date, true))} · All day`;
   const end = item.end_date ? new Date(item.end_date) : undefined;
-  return `${relativeDay(start)} · ${formatTime(start)}${end ? `–${formatTime(end)}` : ''}`;
+  return `${relativeDay(start)} · ${formatTime(start)}${end && end.getTime() !== start.getTime() ? `–${formatTime(end)}` : ''}`;
 }

@@ -10,6 +10,7 @@ A planner for one-time and recurring items, course groups, and imported universi
 - Track completion for a whole one-time item or a specific recurring occurrence.
 - Browse Home's Today, Overdue, and Coming up sections, or the day/week/month calendar.
 - Search by item title or group name; create, edit, color, and delete course groups.
+- Open a course dashboard, paste a UNSW outline link, and save its assessments, deadlines, resources, contacts, schedule, and extraction details. Confirmed deadlines automatically become planner items; refresh updates them while preserving completion.
 - Preview iCal subscriptions, review detected courses, import events, and refresh feeds.
 - Configure semester/trimester dates and a flex-week number.
 
@@ -106,7 +107,10 @@ Usernames are lowercased. Passwords require at least eight characters, an upperc
 | `GET` | `/api/courses` | Return owned `courses` as database-shaped rows. The UI calls these groups. |
 | `POST` | `/api/courses` | Create with `{ name, code?, color? }`. |
 | `PUT` | `/api/courses/:id` | Update supplied `{ name?, code?, color? }` fields. |
-| `DELETE` | `/api/courses/:id` | Delete the course; its items remain with no course association. |
+| `DELETE` | `/api/courses/:id` | Delete the course and its saved outline; its items remain with no course association. |
+| `GET` | `/api/courses/:id/outline` | Return the owned course’s saved `outline`, or `null`. |
+| `PUT` | `/api/courses/:id/outline` | Fetch and save a UNSW outline from `{ url, allowCodeMismatch? }`; return `outline` and planner `sync` counts. A code mismatch returns 409 until explicitly accepted. |
+| `POST` | `/api/courses/:id/outline/sync` | Synchronize a saved outline’s deadlines without fetching UNSW; return `outline` and `sync`. Used when opening a course dashboard. |
 | `GET` | `/api/settings` | Return `settings.university`; defaults are supplied for an unsaved user. |
 | `PUT` | `/api/settings` | Save `{ university: { termSystem, termDates, flexWeek } }`. |
 
@@ -147,11 +151,29 @@ Private-network calendars are unsupported. Feed URLs may contain tokens: request
 
 ## Database
 
-The runtime schema is defined in [backend/db/connection.ts](backend/db/connection.ts). The database has eight tables: `users`, `sessions`, `courses`, `icals`, `items`, `completions`, `settings`, and `settings_term_dates`.
+The runtime schema is defined in [backend/db/connection.ts](backend/db/connection.ts). The database has ten tables: `users`, `sessions`, `courses`, `course_outlines`, `course_outline_items`, `icals`, `items`, `completions`, `settings`, and `settings_term_dates`.
 
 See [DATABASE_SCHEMA_ERD.md](DATABASE_SCHEMA_ERD.md) for relationships and field semantics, and [database_schema.sql](database_schema.sql) for the matching fresh-database DDL. The application initializes tables directly in TypeScript; it does not load the SQL file. There are no study-log tables or explicit performance indexes in the current initializer.
 
 ## Validation
+
+### Standalone UNSW outline preview
+
+An isolated extractor in `backend/api/unswOutline.ts` reads UNSW public course
+outlines without AI or database access. The course dashboard uses a separate
+`courseOutlines.ts` service to fetch and persist results through authenticated
+course routes and synchronizes confirmed deadlines into the planner. The standalone inspector remains available. Inspect the captured
+COMP9331 outline with:
+
+```bash
+npx tsx scripts/inspectUnswOutline.ts --fixture test/fixtures/unsw/comp9331-2026-t3.json
+```
+
+Add `--json` for structured output or use `--url '<full UNSW outline URL>'` instead
+of `--fixture` to fetch a current outline. See [the inspection guide](docs/unsw-outline.md)
+for supported date formats, source evidence, limitations, and expected results.
+
+### Application checks
 
 ```bash
 npm test

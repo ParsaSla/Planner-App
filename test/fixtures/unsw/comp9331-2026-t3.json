@@ -1,0 +1,381 @@
+{
+  "sourceUrl": "https://www.unsw.edu.au/course-outlines/course-outline#year=2026&term=Term%203&deliveryMode=In%20Person&deliveryFormat=Standard&teachingPeriod=T3&deliveryLocation=Kensington&courseCode=COMP9331&activityGroupId=1",
+  "retrievedAt": "2026-09-27T10:35:48.020942+00:00",
+  "response": {
+    "integrat_academichonesty": "<div>\n<p>UNSW has an ongoing commitment to fostering a culture of learning informed by academic integrity. All UNSW students have a responsibility to adhere to this principle of academic integrity. Plagiarism undermines academic integrity and is not tolerated at UNSW. <i>Plagiarism at UNSW is defined as using the words or ideas of others and passing them off as your own.</i></p>\n\n<p>Plagiarism is a type of intellectual theft. It can take many forms, from deliberate cheating to accidentally copying from a source without acknowledgement. UNSW has produced a website with a wealth of resources to support students to understand and avoid plagiarism, visit: <a href=\"https://student.unsw.edu.au/plagiarism\">student.unsw.edu.au/plagiarism</a>. The Learning Centre assists students with understanding academic integrity and how not to plagiarise. They also hold workshops and can help students one-on-one.</p>\n\n<p>You are also reminded that careful time management is an important part of study and one of the identified causes of plagiarism is poor time management. Students should allow sufficient time for research, drafting and the proper referencing of sources in preparing all assessment tasks.</p>\n\n<p>Repeated plagiarism (even in first year), plagiarism after first year, or serious instances, may also be investigated under the Student Misconduct Procedures. The penalties under the procedures can include a reduction in marks, failing a course or for the most serious matters (like plagiarism in an honours thesis or contract cheating) even suspension from the university. The Student Misconduct Procedures are available here:</p>\n\n<p><a href=\"http://www.gs.unsw.edu.au/policy/documents/studentmisconductprocedures.pdf\">www.gs.unsw.edu.au/policy/documents/studentmisconductprocedures.pdf</a></p>\n</div>\n",
+    "integrat_additionalcosts": null,
+    "integrat_additionalcourseinfo": null,
+    "integrat_additionalterms": null,
+    "integrat_approach": "WebCMS | Moodle - Learning Management System | Echo 360",
+    "integrat_assessmentinfo": null,
+    "integrat_attendancecustomreq": null,
+    "integrat_attendancereq": "Students are strongly encouraged to attend all classes and review lecture recordings.",
+    "integrat_campus": "Sydney",
+    "integrat_career": "Postgraduate",
+    "integrat_courseaims": "<p>The course aims to provide students with an overview of the core topics in computer networks and the Internet's architecture and protocols. Students will be introduced to network programming and will learn to design and implement network protocols and applications and evaluate network performance. As an introductory course, one of the aims is to prepare students for more advanced study in follow-on courses.</p>",
+    "integrat_coursecode": "COMP9331",
+    "integrat_coursename": "Computer Networks and Applications",
+    "integrat_courserelationships": null,
+    "integrat_coursesummary": "<p>This course is an introductory course on computer networks aimed at students with a computer science / electrical engineering background. You will focus on common paradigms and protocols used in present data communication. Through lectures, in-class activities, labs and assignments, you will learn the theory and application of:</p>\n<p>(1) Medium access control, congestion control, flow control, and reliable transmission,</p>\n<p>(2) Addressing and naming,</p>\n<p>(3) Routing and switching,</p>\n<p>(4) Widely used protocols such as Ethernet, IP, TCP, UDP, HTTP, etc.</p>\n<p>(5) Special-purpose networks including content delivery, peer-to-peer, and wireless networks, and</p>\n<p>(6) Security threats and standard defensive techniques (if time permits)</p>\n<p>This is a combined undergraduate and postgraduate course. The corresponding undergraduate course code is COMP3331.</p>",
+    "integrat_courseteachlearn": null,
+    "integrat_deliveryformat": "Standard",
+    "integrat_deliverymode": "In Person",
+    "integrat_ecoscourseoutlineid": 19864,
+    "integrat_evaluationdev": "<p>Anonymous feedback form and UNSW MyExperience Survey</p>",
+    "integrat_expectedresources": null,
+    "integrat_facultyInfo": "<p><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"https://nucleus.unsw.edu.au/en/contact-us\">Engineering Student Support Services</a>&nbsp;– The Nucleus -&nbsp;enrolment, progression checks, clash requests, course issues or program-related queries&nbsp;</p><p><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"https://unsw.sharepoint.com/sites/Engineering-Professional-Practice/SitePages/Support.aspx\">Engineering Professional Practice</a>&nbsp;– (previously known as Industrial Training)&nbsp;</p><p><a href=\"mailto:studyabroad@unsw.edu.au\">UNSW Study Abroad</a>&nbsp;– study abroad student enquiries (for inbound students)&nbsp;</p><p><a href=\"mailto:exchange@unsw.edu.au\">UNSW Exchange</a>&nbsp;– student exchange enquiries (for inbound students)&nbsp;</p><p><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"https://www.futurestudents.unsw.edu.au/ask-question\">UNSW Future Students</a>&nbsp;– potential student enquiries&nbsp;e.g. admissions, fees, programs, credit transfer&nbsp;</p><p><strong>Phone&nbsp;</strong></p><p>(+61 2) 9385 8500 – Nucleus Student Hub&nbsp;</p>",
+    "integrat_facultyinfo_essentialinfo": "<p><b>I. Special consideration and supplementary assessment</b></p>\n\n<p>If you have experienced an illness or misadventure beyond your control that will interfere with your assessment performance, you are eligible to apply for Special Consideration prior to, or within 3 working days of,&nbsp;submitting an assessment or sitting an exam.</p>\n\n<p>Please note that UNSW has a Fit to Sit&nbsp;rule, which means that if you sit an exam, you are declaring yourself fit enough to do so and cannot later apply for Special Consideration.</p>\n\n<p>For details of applying for Special Consideration and conditions for the award of supplementary assessment, please see the information on UNSW&rsquo;s <a href=\"https://www.student.unsw.edu.au/special-consideration\">Special Consideration page</a>.</p>\n\n<p><b>II. Administrative matters and links</b></p>\n\n<p>All students are expected to read and be familiar with UNSW guidelines and polices. In particular, students should be familiar with the following:</p>\n\n<ul>\n\t<li><a href=\"https://student.unsw.edu.au/attendance\">Attendance</a></li>\n\t<li><a href=\"https://www.myit.unsw.edu.au/services/students/email-students-and-staff\">UNSW Email Address</a></li>\n\t<li><a href=\"https://student.unsw.edu.au/special-consideration\">Special Consideration</a></li>\n\t<li><a href=\"https://student.unsw.edu.au/exams\">Exams</a></li>\n\t<li><a href=\"https://student.unsw.edu.au/exam-approved-calculators-and-computers\">Approved Calculators</a></li>\n\t<li><a href=\"https://student.unsw.edu.au/plagiarism\">Academic Honesty and Plagiarism</a></li>\n\t<li><a href=\"https://student.unsw.edu.au/els\">Equitable Learning Services</a></li>\n</ul>\n\n<p><b>III. Equity and diversity</b></p>\n\n<p>Those students who have a disability that requires some adjustment in their teaching or learning environment are encouraged to discuss their study needs with the course convener prior to, or at the commencement of, their course, or with the Equity Officer (Disability) in the Equitable Learning Services. Issues to be discussed may include access to materials, signers or note-takers, the provision of services and additional exam and assessment arrangements. Early notification is essential to enable any necessary adjustments to be made.</p>\n\n<p><b>IV. Professional Outcomes and Program Design</b></p>\n\n<p>Students are able to review the relevant professional outcomes and program designs for their streams by going to the following link: <a href=\"https://www.unsw.edu.au/engineering/student-life/student-resources/program-design\">https://www.unsw.edu.au/engineering/student-life/student-resources/program-design</a>.</p>\n\n<p><i>Note: This course outline sets out the description of classes at the date the Course Outline is published. The nature of classes may change during the Term after the Course Outline is published.&nbsp; Moodle or your primary learning management system (LMS) should be consulted for the up-to-date class descriptions.&nbsp; If there is any inconsistency in the description of activities between the University timetable and the Course Outline/Moodle/LMS, the description in the Course Outline/Moodle/LMS applies<b>.</b></i><b>&nbsp;</b></p>\n",
+    "integrat_gradingbasis": "Standard UNSW Grades",
+    "integrat_handbooklink": "https://www.handbook.unsw.edu.au/postgraduate/courses/2026/COMP9331",
+    "integrat_ismultiterm": "No",
+    "integrat_location": "Kensington",
+    "integrat_lastpublishedon": "04 Sep 2026",
+    "integrat_otherprofoutcomes": null,
+    "integrat_owningacademicunit": "School of Computer Science and Engineering",
+    "integrat_owningfaculty": "Faculty of Engineering",
+    "integrat_recommenedres": "<p>Kurose_Ross's resources for students<br>https://gaia.cs.umass.edu/kurose_ross/index.php</p>",
+    "integrat_resourcesreqd": null,
+    "integrat_reqtopass": "<p>Must achieve at least 40% in the final exam and at least 50% overall across all assessment components. Must attempt all assessment components.</p>\n",
+    "integrat_scheduleinfo": "<p>Tentative&nbsp;<br>Week 1: Lectures on 14 &amp; 17th September &nbsp;(Introduction)</p><p>Week 2: Lectures on&nbsp;21st &amp; 24th September (Application Layer)</p><p>Week 3: Lectures on&nbsp;28th September &amp; 1st &nbsp;October (Application Layer) + Lab 1 report submission due</p><p>Week 4: Lectures on&nbsp;8th October (Transport Layer) + Lab 2&nbsp;report submission due</p><p>(No lecture on 5 October due to the NSW Labour Day public holiday.)</p><p>Week 5:&nbsp;Lectures on 12th October &amp; 15th October (Transport Layer) + Lab 3&nbsp;report submission due</p><p>Week 6: <strong>No Lecture, No Lab</strong></p><p>Week 7:&nbsp;&nbsp;Lectures on 26th and 29th October (Network&nbsp;Layer) + Midterm Exam on 26th October during lecture time</p><p>Week 8:&nbsp;Lectures on 2nd &amp; 5th November (Network&nbsp;Layer)&nbsp;</p><p>Week 9:&nbsp;Lectures on 9th &amp; 12th of November (Link Layer) + Lab 4 report submission due, Assignment due</p><p>Week 10:&nbsp;Lectures on 16th and 19th November (Wireless Networks) + Lab 5 report submission due</p>",
+    "integrat_school_additional_info": null,
+    "integrat_school_contact_info": "<p><b><span><span><span><span><span>CSE Help! - on the Ground Floor of K17</span></span></span></span></span></b></p>\n\n<ul>\n\t<li><span><span><span><span><span><span><span><span><span><span><span>For assistance with coursework assessments.&nbsp;</span></span></span></span></span></span></span></span></span></span></span></li>\n</ul>\n\n<p><b>The Nucleus Student Hub </b>-&nbsp;<span><span><span><a href=\"https://nucleus.unsw.edu.au/en/contact-us\">https://nucleus.unsw.edu.au/en/contact-us</a></span></span></span></p>\n\n<ul>\n\t<li><span><span><span><span><span>Course enrolment queries.</span></span></span></span></span></li>\n</ul>\n\n<p><b>Grievance Officer </b>- <span><span><span><a href=\"mailto:grievance-officer@cse.unsw.edu.au\">grievance-officer@cse.unsw.edu.au</a></span></span></span></p>\n\n<ul>\n\t<li>If the course&nbsp;<span><span><span>convenor gives an inadequate response to a query or when the courses convenor does not respond to a query about assessment.&nbsp;</span></span></span></li>\n</ul>\n\n<p><b>Student Reps </b>- &nbsp;<span><span><span><a href=\"mailto:stureps@cse.unsw.edu.au\">stureps@cse.unsw.edu.au</a></span></span></span></p>\n\n<ul>\n\t<li>\n\t<p><span><span><span><span><span>If some aspect of a course needs urgent improvement.</span></span></span></span></span><span><span><span><span><span><span><span><span>&nbsp;<span><span><span>(e.g. Nobody responding to forum queries, cannot&nbsp;understand the lecturer)</span></span></span></span></span></span></span></span></span></span></span></p>\n\t</li>\n</ul>\n\n<p>&nbsp;</p>\n\n<p><span><span><span><span><span>You should</span></span></span></span></span><b><span><span><span><span><span> never</span></span></span></span></span></b><span><span><span><span><span> contact any of the following people directly:</span></span></span></span></span></p>\n\n<p><span><span><span><span><span><span><span><span><span><span><span>- Vice Chancellor</span></span></span></span></span></span></span></span></span></span></span></p>\n\n<p><span><span><span><span><span><span><span><span><span><span><span>- Pro-vice Chancellor Education (PVCE)</span></span></span></span></span></span></span></span></span></span></span></p>\n\n<p><span><span><span><span><span><span><span><span><span><span><span>- Head of School</span></span></span></span></span></span></span></span></span></span></span></p>\n\n<p><span><span><span><span><span><span><span><span><span><span><span>- CSE administrative staff</span></span></span></span></span></span></span></span></span></span></span></p>\n\n<p><span><span><span><span><span><span><span><span><span><span><span>- CSE teaching support staff</span></span></span></span></span></span></span></span></span></span></span></p>\n\n<p><span><span><span><span><span><span><span><span><span><span><span>They will simply bounce the email to one of the above, thereby&nbsp;</span></span></span></span></span></span></span></span></span></span></span><span><span><span><span><span><span><span><span><span><span><span>creating an unnecessary level of indirection and a delay in the response.</span></span></span></span></span></span></span></span></span></span></span></p>\n",
+    "integrat_simscourseid": "005854",
+    "integrat_subassmnttasks": "<div>\n<p>Work submitted late without an approved extension by the course coordinator or delegated authority is subject to a late penalty of five percent (5%) for that assessment item.</p>\n\n<p>The late penalty is applied per calendar day (including weekends and public holidays) that the assessment is overdue. There is no pro-rata of the late penalty for submissions made part way through a day. This is for all assessments where a penalty applies.</p>\n\n<p>Work submitted after five days (120 hours) will not be accepted and a mark of zero will be awarded for that assessment item.</p>\n\n<p>For some assessment items, a late penalty may not be appropriate. These will be clearly indicated in the course outline, and such assessments will receive a mark of zero if not completed by the specified date. Examples include:</p>\n\n<ul>\n\t<li>Weekly online tests or laboratory work worth a small proportion of the subject mark;</li>\n\t<li>Exams, peer feedback and team evaluation surveys;</li>\n\t<li>Online quizzes where answers are released to students on completion;</li>\n\t<li>Professional assessment tasks, where the intention is to create an authentic assessment that has an absolute submission date; and,</li>\n\t<li>Pass/Fail assessment tasks.</li>\n</ul>\n</div>\n",
+    "integrat_sustainable_development_goals": null,
+    "integrat_system_settings_additional_info": null,
+    "integrat_teachingperiod": "T3",
+    "integrat_term": "Term 3",
+    "integrat_termcode": "5269",
+    "integrat_timetablelink": "https://timetable.unsw.edu.au/2026/COMP9331.html",
+    "integrat_unitsofcredit": 6,
+    "integrat_year": "2026",
+    "integrat_CO_Assessment": [
+      {
+        "integrat_additionalinfo": null,
+        "integrat_criteria": "",
+        "integrat_detail": null,
+        "integrat_duedate": "13/11/2026 05:00 PM",
+        "integrat_duedatetype": "Fixed",
+        "integrat_format": null,
+        "integrat_shortextension": null,
+        "integrat_groupindividual": "Individual",
+        "integrat_hurdlerules": null,
+        "integrat_length": null,
+        "integrat_postdate": null,
+        "integrat_assmntstandards": [],
+        "integrat_startdate": "Not Applicable",
+        "integrat_startdatetype": "Not Applicable",
+        "integrat_submissionnotes": null,
+        "integrat_tasks": null,
+        "integrat_title": "Programming Assignmnent",
+        "integrat_turnitintype": null,
+        "integrat_type": null,
+        "integrat_order": "1",
+        "integrat_weight": "20%",
+        "integrat_summary": "<p>Students will be asked to implement a moderately complex component of a network architecture, in C, Java or Python.</p>\n<p>The assignment will be partly auto-marked. The submissions will be reviewed by tutors, who will provide feedback.</p>",
+        "integrat_ai_additional_info": "<p>Please make sure to read instructions on AI usages in your assesment and assignment specifications. They override &nbsp;the \"<strong>assistance with attribution</strong>\" statement above.&nbsp;</p>",
+        "integrat_ai_permission": "Assistance with Attribution",
+        "integrat_ai_permission_guidance": "This assessment requires you to write/create a first iteration of your submission yourself. You are then permitted to use generative AI tools, software or services to improve your submission in the ways set out below.<br/> Any output of generative AI tools, software or services that is used within your assessment must be attributed with full referencing.<br/> If outputs of generative AI tools, software or services form part of your submission and are not appropriately attributed, your Convenor will determine whether the omission is significant. If so, you may be asked to explain your submission. If you are unable to satisfactorily demonstrate your understanding of your submission you may be referred to UNSW Conduct & Integrity Office for investigation for academic misconduct and possible penalties.<br/>For more information on Generative AI and permitted use please see <a href='https://www.student.unsw.edu.au/assessment/ai' target='_blank'>here</a>.",
+        "integrat_assmtclos": [
+          "CLO2 : Identify soundness and/or potential flaws in proposed protocols",
+          "CLO3 : Design networked applications and protocols, and implement them in C, Java or Python",
+          "CLO4 : Analyse and evaluate the performance of computer networks"
+        ]
+      },
+      {
+        "integrat_additionalinfo": null,
+        "integrat_criteria": "",
+        "integrat_detail": null,
+        "integrat_duedate": "Lab 1: Tue 29 September, Lab 2: Tue 6 October, Lab 3: Tue 13 October, Lab 4: Tue 10 November, Lab 5:Tue 17th November",
+        "integrat_duedatetype": "Other",
+        "integrat_format": null,
+        "integrat_shortextension": null,
+        "integrat_groupindividual": "Individual",
+        "integrat_hurdlerules": null,
+        "integrat_length": null,
+        "integrat_postdate": null,
+        "integrat_assmntstandards": [],
+        "integrat_startdate": "Not Applicable",
+        "integrat_startdatetype": "Not Applicable",
+        "integrat_submissionnotes": "Submissions are weekly basis for this assesment. 17:00 every Tuesday as mentioned above.",
+        "integrat_tasks": null,
+        "integrat_title": "Lab",
+        "integrat_turnitintype": "Not Applicable",
+        "integrat_type": null,
+        "integrat_order": "2",
+        "integrat_weight": "20%",
+        "integrat_summary": "<p>Students will work on a set of small exercises to explore tools and techniques for analysing and building networking applications.</p>\n<p>Marks are awarded by the lab demonstrators using criteria given in each lab exercise.</p>",
+        "integrat_ai_additional_info": null,
+        "integrat_ai_permission": "Simple Editing Assistance",
+        "integrat_ai_permission_guidance": "In completing this assessment, you are permitted to use standard editing and referencing functions in the software you use to complete your assessment. These functions are described below. You must not use any functions that generate or paraphrase passages of text or other media, whether based on your own work or not.<br/> If your Convenor has concerns that your submission contains passages of AI-generated text or media, you may be asked to account for your work. If you are unable to satisfactorily demonstrate your understanding of your submission you may be referred to UNSW Conduct & Integrity Office for investigation for academic misconduct and possible penalties.<br/>For more information on Generative AI and permitted use please see <a href='https://www.student.unsw.edu.au/assessment/ai' target='_blank'>here</a>.",
+        "integrat_assmtclos": [
+          "CLO3 : Design networked applications and protocols, and implement them in C, Java or Python",
+          "CLO4 : Analyse and evaluate the performance of computer networks",
+          "CLO5 : Capture and analyse network traffic"
+        ]
+      },
+      {
+        "integrat_additionalinfo": null,
+        "integrat_criteria": "",
+        "integrat_detail": null,
+        "integrat_duedate": "Week 7: 26 October - 01 November",
+        "integrat_duedatetype": "Week",
+        "integrat_format": null,
+        "integrat_shortextension": null,
+        "integrat_groupindividual": "Individual",
+        "integrat_hurdlerules": null,
+        "integrat_length": null,
+        "integrat_postdate": null,
+        "integrat_assmntstandards": [],
+        "integrat_startdate": "Not Applicable",
+        "integrat_startdatetype": "Not Applicable",
+        "integrat_submissionnotes": null,
+        "integrat_tasks": null,
+        "integrat_title": "Mid-term Exam",
+        "integrat_turnitintype": "Not Applicable",
+        "integrat_type": null,
+        "integrat_order": "3",
+        "integrat_weight": "20%",
+        "integrat_summary": "<p>The mid-term exam will be 75 minutes long and will be held approximately in the middle of the term. It will examine students on topics covered from the first half of the term.</p>",
+        "integrat_ai_additional_info": null,
+        "integrat_ai_permission": "No Assistance",
+        "integrat_ai_permission_guidance": "This assessment is designed for you to complete without the use of any generative AI. You are not permitted to use any generative AI tools, software or service to search for or generate information or answers.<br/>For more information on Generative AI and permitted use please see <a href='https://www.student.unsw.edu.au/assessment/ai' target='_blank'>here</a>.",
+        "integrat_assmtclos": [
+          "CLO1 : Describe the current architecture of the Internet and the entities involved in its operations",
+          "CLO2 : Identify soundness and/or potential flaws in proposed protocols"
+        ]
+      },
+      {
+        "integrat_additionalinfo": "<p>On-campus. Invigilated.</p>\n",
+        "integrat_criteria": "",
+        "integrat_detail": null,
+        "integrat_duedate": "During the Final Exam Period",
+        "integrat_duedatetype": "Other",
+        "integrat_format": null,
+        "integrat_shortextension": null,
+        "integrat_groupindividual": "Individual",
+        "integrat_hurdlerules": "<p>Must obtain at least 40%&nbsp;</p>\n",
+        "integrat_length": null,
+        "integrat_postdate": null,
+        "integrat_assmntstandards": [],
+        "integrat_startdate": "During the Final Exam Period",
+        "integrat_startdatetype": "Other",
+        "integrat_submissionnotes": null,
+        "integrat_tasks": null,
+        "integrat_title": "Final Exam",
+        "integrat_turnitintype": null,
+        "integrat_type": null,
+        "integrat_order": "4",
+        "integrat_weight": "40%",
+        "integrat_summary": "<p>The final exam will be 2 hours long and will be held in the UNSW exam period. It will examine students on all topics covered in the term.</p>",
+        "integrat_ai_additional_info": null,
+        "integrat_ai_permission": "No Assistance",
+        "integrat_ai_permission_guidance": "This assessment is designed for you to complete without the use of any generative AI. You are not permitted to use any generative AI tools, software or service to search for or generate information or answers.<br/>For more information on Generative AI and permitted use please see <a href='https://www.student.unsw.edu.au/assessment/ai' target='_blank'>here</a>.",
+        "integrat_assmtclos": [
+          "CLO1 : Describe the current architecture of the Internet and the entities involved in its operations",
+          "CLO2 : Identify soundness and/or potential flaws in proposed protocols",
+          "CLO4 : Analyse and evaluate the performance of computer networks",
+          "CLO6 : Explain security and ethical issues in computer networking"
+        ]
+      }
+    ],
+    "integrat_assmntstandardstitle": "",
+    "integrat_CO_Assessment_Table_Metadata": [
+      [
+        {
+          "text": "Assessment Item",
+          "isHeading": "true"
+        },
+        {
+          "text": "Weight",
+          "isHeading": "true"
+        },
+        {
+          "text": "Relevant Dates",
+          "isHeading": "true"
+        }
+      ],
+      [
+        {
+          "field": "integrat_title",
+          "list": {
+            "type": "dl",
+            "data": [
+              [
+                {
+                  "type": "dt",
+                  "text": "Assessment Format"
+                },
+                {
+                  "type": "dd",
+                  "field": "integrat_groupindividual"
+                }
+              ],
+              [
+                {
+                  "type": "dt",
+                  "text": "Short Extension"
+                },
+                {
+                  "type": "dd",
+                  "field": "integrat_shortextension"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "field": "integrat_weight"
+        },
+        {
+          "list": {
+            "type": "dl",
+            "data": [
+              [
+                {
+                  "type": "dt",
+                  "text": "Start Date"
+                },
+                {
+                  "type": "dd",
+                  "field": "integrat_startdate"
+                }
+              ],
+              [
+                {
+                  "type": "dt",
+                  "text": "Due Date"
+                },
+                {
+                  "type": "dd",
+                  "field": "integrat_duedate"
+                }
+              ],
+              [
+                {
+                  "type": "dt",
+                  "text": "Post Date"
+                },
+                {
+                  "type": "dd",
+                  "field": "integrat_postdate"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    ],
+    "integrat_CO_Authority": [
+      {
+        "integrat_availability": null,
+        "integrat_elscontact": "Yes",
+        "integrat_elscontactsource": true,
+        "integrat_email": "isura.bamunusinghe@unsw.edu.au",
+        "integrat_firstname": "Isura",
+        "integrat_lastname": "Bamunusinghe Arachchige",
+        "integrat_location": null,
+        "integrat_phone": null,
+        "integrat_position": "Administrator",
+        "integrat_primarycontact": "No",
+        "integrat_primarycontactsource": false
+      },
+      {
+        "integrat_availability": "Check the webcms for consultation information",
+        "integrat_elscontact": "No",
+        "integrat_elscontactsource": false,
+        "integrat_email": "wen.hu@unsw.edu.au",
+        "integrat_firstname": "Wen",
+        "integrat_lastname": "Hu",
+        "integrat_location": "Room 606, K17 (CSE Building)",
+        "integrat_phone": null,
+        "integrat_position": "Convenor",
+        "integrat_primarycontact": "Yes",
+        "integrat_primarycontactsource": true
+      }
+    ],
+    "integrat_CO_LearningOutcome": [
+      {
+        "integrat_clo": "CLO1 : Describe the current architecture of the Internet and the entities involved in its operations",
+        "integrat_code": "CLO1",
+        "integrat_description": "Describe the current architecture of the Internet and the entities involved in its operations",
+        "integrat_loassmntitems": [
+          "Mid-term Exam",
+          "Final Exam"
+        ],
+        "integrat_lostandards": [],
+        "integrat_order": 1
+      },
+      {
+        "integrat_clo": "CLO2 : Identify soundness and/or potential flaws in proposed protocols",
+        "integrat_code": "CLO2",
+        "integrat_description": "Identify soundness and/or potential flaws in proposed protocols",
+        "integrat_loassmntitems": [
+          "Programming Assignmnent",
+          "Mid-term Exam",
+          "Final Exam"
+        ],
+        "integrat_lostandards": [],
+        "integrat_order": 2
+      },
+      {
+        "integrat_clo": "CLO3 : Design networked applications and protocols, and implement them in C, Java or Python",
+        "integrat_code": "CLO3",
+        "integrat_description": "Design networked applications and protocols, and implement them in C, Java or Python",
+        "integrat_loassmntitems": [
+          "Programming Assignmnent",
+          "Lab"
+        ],
+        "integrat_lostandards": [],
+        "integrat_order": 3
+      },
+      {
+        "integrat_clo": "CLO4 : Analyse and evaluate the performance of computer networks",
+        "integrat_code": "CLO4",
+        "integrat_description": "Analyse and evaluate the performance of computer networks",
+        "integrat_loassmntitems": [
+          "Programming Assignmnent",
+          "Lab",
+          "Final Exam"
+        ],
+        "integrat_lostandards": [],
+        "integrat_order": 4
+      },
+      {
+        "integrat_clo": "CLO5 : Capture and analyse network traffic",
+        "integrat_code": "CLO5",
+        "integrat_description": "Capture and analyse network traffic",
+        "integrat_loassmntitems": [
+          "Lab"
+        ],
+        "integrat_lostandards": [],
+        "integrat_order": 5
+      },
+      {
+        "integrat_clo": "CLO6 : Explain security and ethical issues in computer networking",
+        "integrat_code": "CLO6",
+        "integrat_description": "Explain security and ethical issues in computer networking",
+        "integrat_loassmntitems": [
+          "Final Exam"
+        ],
+        "integrat_lostandards": [],
+        "integrat_order": 6
+      }
+    ],
+    "integrat_lostandardstitle": "",
+    "integrat_CO_LearningOutcome_Table_Metadata": [
+      [
+        {
+          "text": "Course Learning Outcomes",
+          "isHeading": "true"
+        }
+      ],
+      [
+        {
+          "field": "integrat_clo"
+        }
+      ]
+    ],
+    "integrat_CO_Schedule": []
+  }
+}

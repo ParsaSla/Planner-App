@@ -15,6 +15,7 @@ import {
   startOfDay,
 } from '../util';
 import TaskRow from './TaskRow';
+import CourseDashboard from './CourseDashboard';
 import type { DetailTarget } from './DetailModal';
 
 interface Props {
@@ -92,7 +93,7 @@ export default function TaskView({ store, selection, query, onOpenDetail }: Prop
     const end = t.end_date ? new Date(t.end_date) : undefined;
     const when = t.allDay
       ? `${relativeDay(occurrenceDay(t.start_date, true))} · All day`
-      : `${relativeDay(start)} · ${formatTime(start)}${end ? `–${formatTime(end)}` : ''}`;
+      : `${relativeDay(start)} · ${formatTime(start)}${end && end.getTime() !== start.getTime() ? `–${formatTime(end)}` : ''}`;
     return (
       <TaskRow
         key={t.id}
@@ -116,7 +117,7 @@ export default function TaskView({ store, selection, query, onOpenDetail }: Prop
     const end = new Date(o.end);
     const time = o.allDay
       ? 'All day'
-      : `${formatTime(start)}${isNaN(end.getTime()) ? '' : `–${formatTime(end)}`}`;
+      : `${formatTime(start)}${isNaN(end.getTime()) || end.getTime() === start.getTime() ? '' : `–${formatTime(end)}`}`;
     const when = withDay ? `${relativeDay(occurrenceDay(o.start, o.allDay))} · ${time}` : time;
     return (
       <TaskRow
@@ -137,14 +138,6 @@ export default function TaskView({ store, selection, query, onOpenDetail }: Prop
       />
     );
   };
-
-  const empty = (msg: string) => (
-    <div className="empty">
-      <div className="ico">📭</div>
-      <p>{msg}</p>
-      <p className="hint">Hit the ＋ button to create one.</p>
-    </div>
-  );
 
   // ---------------- HOME ----------------
   if (isHome && (agenda.loading || agenda.error)) {
@@ -239,28 +232,12 @@ export default function TaskView({ store, selection, query, onOpenDetail }: Prop
     const oneTime = inGroup.filter(isOneTime).sort(byDate);
     const recurring = inGroup.filter(isRecurring);
     const total = inGroup.length;
+    if (!group) return <main className="main"><p>This group is no longer available. Select another group or Home.</p></main>;
     return (
-      <main className="main">
-        <div className="page-head">
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: 5,
-                background: store.groupColor(selection.id),
-              }}
-            />
-            {group?.name ?? 'Group'}
-          </h1>
-          <span className="sub">
-            {group?.code ? `${group.code} · ` : ''}
-            {total} items
-          </span>
-        </div>
-        <div style={{ height: 18 }} />
-        {total === 0 ? empty('Nothing in this group yet.') : [...oneTime, ...recurring].map((t) => itemRow(t))}
-      </main>
+      <CourseDashboard key={group.id} group={group} color={store.groupColor(group.id)}
+        onItemsChanged={store.reload} itemCount={store.items.filter(item => item.courseId === group.id).length}>
+        {total === 0 ? <p className="section-empty">{query ? 'No planner items match your search.' : 'No planner items in this group yet. Use + to add one.'}</p> : [...oneTime, ...recurring].map((t) => itemRow(t))}
+      </CourseDashboard>
     );
   }
 

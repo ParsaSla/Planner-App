@@ -398,7 +398,7 @@ function TimeGrid({
                       <CalCheck store={store} occ={lo.occ} />
                       <div className="et">{lo.occ.title}</div>
                       <div className="es">
-                        {formatTime(lo.start)} – {formatTime(lo.end)}
+                        {formatTime(lo.start)}{lo.end.getTime() !== lo.start.getTime() ? ` – ${formatTime(lo.end)}` : ''}
                         {lo.occ.recurrence === 'RECURRING' ? ' · 🔁' : ''}
                       </div>
                     </div>

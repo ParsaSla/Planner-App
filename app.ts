@@ -3,6 +3,7 @@ import path from 'path';
 import {invalidateSession, validateSession, login, register} from './backend/auth';
 import { ERRORS, getStatusCode } from './backend/error/errors';
 import AppError from './backend/error/appError';
+import { getCourseOutline, saveCourseOutline, syncSavedCourseOutline } from './backend/api/courseOutlines';
 import { createItem, updateItem, deleteItem, getItems, getItemOccurrences, setOneTimeCompletion, setOccurrenceCompletion, createCourse, getCourses, updateCourse, deleteCourse, getSettings, saveSettings, previewICalImport, commitICalImport, addIcal, removeIcal, updateIcal, getIcal, getIcals, refreshIcal } from './backend/API';
 
 export function createApp() {
@@ -165,6 +166,21 @@ export function createApp() {
     res.status(200).json({ success: true, courses });
   });
 
+  app.get('/api/courses/:id/outline', (req, res) => {
+    const outline = getCourseOutline(authenticate(req), Number(req.params.id));
+    res.json({ success: true, outline });
+  });
+
+  app.put('/api/courses/:id/outline', async (req, res) => {
+    const result = await saveCourseOutline(authenticate(req), Number(req.params.id), req.body?.url, req.body?.allowCodeMismatch);
+    res.json({ success: true, ...result });
+  });
+
+  app.post('/api/courses/:id/outline/sync', (req, res) => {
+    const result = syncSavedCourseOutline(authenticate(req), Number(req.params.id));
+    res.json({ success: true, ...result });
+  });
+
   // create course, expects { name, code?, color? }
   app.post("/api/courses", (req, res) => {
     const { name, code, color } = req.body;
@@ -278,7 +294,7 @@ export function createApp() {
   // and rejected promises to this middleware automatically.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const error = err as AppError;
-    res.status(getStatusCode(error)).json({ success: false, error: error.message });
+    res.status(getStatusCode(error)).json({ success: false, error: error.message, code: error.errorCode });
   });
 
   return app;

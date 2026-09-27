@@ -48,6 +48,8 @@ export interface CourseRow {
 export interface Item {
   /** Present when the event is controlled by a calendar subscription. */
   source_uid?: number;
+  /** Course owning this outline-managed deadline. */
+  outline_course_id?: number;
   id: string;
   courseId?: string;
   title: string;

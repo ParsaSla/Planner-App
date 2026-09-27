@@ -32,7 +32,7 @@ export default function App() {
 
   const openCreate = (kind: CreateKind) => setModal({ initial: kind });
   const openEdit = (item: Item) => {
-    if (item.source_uid == null) setModal({ initial: 'item', editingItem: item });
+    if (item.source_uid == null && item.outline_course_id == null) setModal({ initial: 'item', editingItem: item });
   };
   const openEditGroup = (group: Group) => setModal({ initial: 'group', editingGroup: group });
   const openDetail = (target: DetailTarget) => setDetail(target);
@@ -45,6 +45,17 @@ export default function App() {
   return (
     <div className="app">
       <TopBar query={query} onQuery={setQuery} onOpenCalendar={() => setCalendarOpen(true)} />
+
+      <nav className="mobile-course-picker" aria-label="Planner navigation">
+        <label htmlFor="mobile-course-view">View</label>
+        <select id="mobile-course-view" value={selection.kind === 'group' ? String(selection.id) : 'home'} onChange={event => {
+          const group = store.groups.find(value => String(value.id) === event.target.value);
+          setSelection(group ? { kind: 'group', id: group.id } : { kind: 'view', view: 'home' });
+        }}>
+          <option value="home">Home</option>
+          {store.groups.map(group => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
+        </select>
+      </nav>
 
       <div className="body">
         <Sidebar

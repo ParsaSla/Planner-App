@@ -50,6 +50,12 @@ function initializeSQLite(dbPath: string): void {
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS course_outlines (
+            course_id INTEGER PRIMARY KEY REFERENCES courses(id) ON DELETE CASCADE,
+            result_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
         -- Unified planner item: a task (point in time) or an event (time-blocked span),
         -- either one-time or recurring. Two discriminator columns say which:
         --   kind       = 'TASK'  | 'EVENT'
@@ -110,6 +116,14 @@ function initializeSQLite(dbPath: string): void {
             FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE
         );
 
+
+        CREATE TABLE IF NOT EXISTS course_outline_items (
+            course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+            source_key TEXT NOT NULL,
+            item_id INTEGER UNIQUE REFERENCES items(id) ON DELETE SET NULL,
+            managed INTEGER NOT NULL,
+            PRIMARY KEY (course_id, source_key)
+        );
 
         CREATE TABLE IF NOT EXISTS completions (
             item_id INTEGER NOT NULL,

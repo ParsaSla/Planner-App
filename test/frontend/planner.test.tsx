@@ -171,7 +171,7 @@ describe('planner calendar interactions', () => {
     fireEvent.click(screen.getByRole('button', { name: /Timetable/ }));
     fireEvent.change(screen.getByPlaceholderText(/https:.*webcal:/), { target: { value: 'https://calendar.example/new' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
-    fireEvent.change(await screen.findByRole('combobox'), { target: { value: '7' } });
+    fireEvent.change(await within(screen.getByRole('dialog')).findByRole('combobox'), { target: { value: '7' } });
     fireEvent.click(screen.getByRole('button', { name: 'Import 1 event' }));
     await waitFor(() => expect(api.commitICalImport).toHaveBeenCalledWith(expect.objectContaining({
       courseDecisions: [expect.objectContaining({ courseId: 7 })],
