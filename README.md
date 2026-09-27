@@ -36,18 +36,18 @@ The server automatically initializes `data/app.db`, enables foreign keys, and us
 
 ## Scripts
 
-| Command | Behavior |
-| --- | --- |
-| `npm run dev` | Run the Express watcher and Vite development server together. |
-| `npm run dev:server` | Run `tsx watch server.ts` on port 8080. |
-| `npm run dev:client` | Run Vite on port 5173, proxying requests to Express. |
-| `npm run build` | Compile backend/login TypeScript, type-check the frontend, and build the dashboard. |
-| `npm run build:server` | Run the root TypeScript compiler, emitting into `dist/`. |
-| `npm run build:client` | Build the dashboard into `dist/frontend/` with Vite. |
-| `npm run typecheck:client` | Check frontend TypeScript without emitting files. |
-| `npm test` | Run the backend and React regression tests with Vitest. |
-| `npm run start:all` | Build the client, then run both development servers. Requires the login script to have been compiled separately or by a full build. |
-| `npm run show:db` | Open `data/app.db` using a separately installed `sqlitebrowser`. |
+| Command                    | Behavior                                                                                                                            |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`              | Run the Express watcher and Vite development server together.                                                                       |
+| `npm run dev:server`       | Run `tsx watch server.ts` on port 8080.                                                                                             |
+| `npm run dev:client`       | Run Vite on port 5173, proxying requests to Express.                                                                                |
+| `npm run build`            | Compile backend/login TypeScript, type-check the frontend, and build the dashboard.                                                 |
+| `npm run build:server`     | Run the root TypeScript compiler, emitting into `dist/`.                                                                            |
+| `npm run build:client`     | Build the dashboard into `dist/frontend/` with Vite.                                                                                |
+| `npm run typecheck:client` | Check frontend TypeScript without emitting files.                                                                                   |
+| `npm test`                 | Run the backend and React regression tests with Vitest.                                                                             |
+| `npm run start:all`        | Build the client, then run both development servers. Requires the login script to have been compiled separately or by a full build. |
+| `npm run show:db`          | Open `data/app.db` using a separately installed `sqlitebrowser`.                                                                    |
 
 ## Project structure
 
@@ -85,38 +85,38 @@ Routes are defined in [app.ts](app.ts); domain behavior is in [backend/api](back
 
 ### Authentication and pages
 
-| Method | Path | Behavior |
-| --- | --- | --- |
-| `GET` | `/` | Redirect to the dashboard or login according to session validity. |
-| `GET` | `/login/` | Serve login/register UI, or redirect an authenticated user. |
-| `POST` | `/register/` | Register with `{ username, password }`; returns the user ID and a login redirect. |
-| `POST` | `/login/` | Authenticate with `{ username, password }`; set `SID` and return a dashboard redirect. |
-| `GET` | `/logout/` | Invalidate the session, clear the cookie, and return a root redirect. |
-| `GET` | `/dashboard/` | Serve the built dashboard after checking the session. |
+| Method | Path          | Behavior                                                                               |
+| ------ | ------------- | -------------------------------------------------------------------------------------- |
+| `GET`  | `/`           | Redirect to the dashboard or login according to session validity.                      |
+| `GET`  | `/login/`     | Serve login/register UI, or redirect an authenticated user.                            |
+| `POST` | `/register/`  | Register with `{ username, password }`; returns the user ID and a login redirect.      |
+| `POST` | `/login/`     | Authenticate with `{ username, password }`; set `SID` and return a dashboard redirect. |
+| `GET`  | `/logout/`    | Invalidate the session, clear the cookie, and return a root redirect.                  |
+| `GET`  | `/dashboard/` | Serve the built dashboard after checking the session.                                  |
 
 Usernames are lowercased. Passwords require at least eight characters, an uppercase letter, a lowercase letter, and a number. Passwords are salted and hashed with PBKDF2. The session cookie is HttpOnly, applies to `/`, and expires after 24 hours.
 
 ### Items, groups, and settings
 
-| Method | Path | Behavior / request |
-| --- | --- | --- |
-| `GET` | `/api/items` | Return source `items`, including recurrence and completion data. |
-| `POST` | `/api/items` | Create a manual item using the payload described below. |
-| `PUT` | `/api/items/:id` | Update a manual item; imported items return HTTP 409. |
-| `DELETE` | `/api/items/:id` | Delete an owned manual or imported item. |
-| `GET` | `/api/items/occurrences` | Expand `items` for `?from=<ISO>&to=<ISO>`; starts fall in the half-open range `[from, to)`. |
-| `PATCH` | `/api/items/:id/completion` | Set completion using `{ completed: boolean, start?: ISO }`. |
-| `GET` | `/api/courses` | Return owned `courses` as database-shaped rows. The UI calls these groups. |
-| `POST` | `/api/courses` | Create with `{ name, code?, color? }`. |
-| `PUT` | `/api/courses/:id` | Update supplied `{ name?, code?, color? }` fields. |
-| `DELETE` | `/api/courses/:id` | Delete the course and its saved outline; its items remain with no course association. |
-| `GET` | `/api/courses/:id/outline` | Return the owned course’s saved `outline`, or `null`. |
-| `PUT` | `/api/courses/:id/outline` | Fetch and save a UNSW outline from `{ url, allowCodeMismatch? }`; return `outline` and a persisted review `draft`. A code mismatch returns 409 until explicitly accepted. No planner items are changed. |
-| `GET` | `/api/courses/:id/outline/draft` | Return the current persisted review draft, or `null`. |
-| `POST` | `/api/courses/:id/outline/commit` | Apply user-reviewed candidate edits from `{ draftId, candidates }` once; stale or already committed drafts return 409. Confirmed timed deadlines and bounded weekly-series occurrences become planner tasks. |
-| `POST` | `/api/courses/:id/outline/sync` | Compatibility read for a saved outline and draft; does not change planner items. |
-| `GET` | `/api/settings` | Return `settings.university`; defaults are supplied for an unsaved user. |
-| `PUT` | `/api/settings` | Save `{ university: { termSystem, termDates, flexWeek } }`. |
+| Method   | Path                              | Behavior / request                                                                                                                                                                                           |
+| -------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET`    | `/api/items`                      | Return source `items`, including recurrence and completion data.                                                                                                                                             |
+| `POST`   | `/api/items`                      | Create a manual item using the payload described below.                                                                                                                                                      |
+| `PUT`    | `/api/items/:id`                  | Update a manual item; imported items return HTTP 409.                                                                                                                                                        |
+| `DELETE` | `/api/items/:id`                  | Delete an owned manual or imported item.                                                                                                                                                                     |
+| `GET`    | `/api/items/occurrences`          | Expand `items` for `?from=<ISO>&to=<ISO>`; starts fall in the half-open range `[from, to)`.                                                                                                                  |
+| `PATCH`  | `/api/items/:id/completion`       | Set completion using `{ completed: boolean, start?: ISO }`.                                                                                                                                                  |
+| `GET`    | `/api/courses`                    | Return owned `courses` as database-shaped rows. The UI calls these groups.                                                                                                                                   |
+| `POST`   | `/api/courses`                    | Create with `{ name, code?, color? }`.                                                                                                                                                                       |
+| `PUT`    | `/api/courses/:id`                | Update supplied `{ name?, code?, color? }` fields.                                                                                                                                                           |
+| `DELETE` | `/api/courses/:id`                | Delete the course and its saved outline; its items remain with no course association.                                                                                                                        |
+| `GET`    | `/api/courses/:id/outline`        | Return the owned course’s saved `outline`, or `null`.                                                                                                                                                        |
+| `PUT`    | `/api/courses/:id/outline`        | Fetch and save a UNSW outline from `{ url, allowCodeMismatch? }`; return `outline` and a persisted review `draft`. A code mismatch returns 409 until explicitly accepted. No planner items are changed.      |
+| `GET`    | `/api/courses/:id/outline/draft`  | Return the current persisted review draft, or `null`.                                                                                                                                                        |
+| `POST`   | `/api/courses/:id/outline/commit` | Apply user-reviewed candidate edits from `{ draftId, candidates }` once; stale or already committed drafts return 409. Confirmed timed deadlines and bounded weekly-series occurrences become planner tasks. |
+| `POST`   | `/api/courses/:id/outline/sync`   | Compatibility read for a saved outline and draft; does not change planner items.                                                                                                                             |
+| `GET`    | `/api/settings`                   | Return `settings.university`; defaults are supplied for an unsaved user.                                                                                                                                     |
+| `PUT`    | `/api/settings`                   | Save `{ university: { termSystem, termDates, flexWeek } }`.                                                                                                                                                  |
 
 Manual create/update payloads share `recurrence`, `title`, and optional `courseId`, `description`, `location`, and `timezone`:
 
@@ -129,16 +129,16 @@ University `termSystem` is `SEMESTER` or `TRIMESTER`. `termDates` contains two o
 
 ### Calendar subscriptions
 
-| Method | Path | Behavior / request |
-| --- | --- | --- |
-| `GET` | `/api/ical` | Return saved `icals`. |
-| `POST` | `/api/ical/` | Save a subscription with `{ url }`; this alone does not download events. |
-| `GET` | `/api/ical/:icalId` | Return one owned subscription as `ical`. |
-| `PUT` | `/api/ical/:icalId` | Update `{ url?, active? }` without fetching events. |
-| `DELETE` | `/api/ical/:icalId` | Delete the subscription and its imported items/completions. |
-| `POST` | `/api/ical/preview` | Fetch `{ url }` and return a `preview` of parsed events and proposed courses; save nothing. |
-| `POST` | `/api/ical/import` | Commit `{ url, courseDecisions, events }` from the review step. |
-| `POST` | `/api/ical/:icalId/refresh` | Fetch the saved feed and sync its events without the review step. |
+| Method   | Path                        | Behavior / request                                                                          |
+| -------- | --------------------------- | ------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/ical`                 | Return saved `icals`.                                                                       |
+| `POST`   | `/api/ical/`                | Save a subscription with `{ url }`; this alone does not download events.                    |
+| `GET`    | `/api/ical/:icalId`         | Return one owned subscription as `ical`.                                                    |
+| `PUT`    | `/api/ical/:icalId`         | Update `{ url?, active? }` without fetching events.                                         |
+| `DELETE` | `/api/ical/:icalId`         | Delete the subscription and its imported items/completions.                                 |
+| `POST`   | `/api/ical/preview`         | Fetch `{ url }` and return a `preview` of parsed events and proposed courses; save nothing. |
+| `POST`   | `/api/ical/import`          | Commit `{ url, courseDecisions, events }` from the review step.                             |
+| `POST`   | `/api/ical/:icalId/refresh` | Fetch the saved feed and sync its events without the review step.                           |
 
 A course decision contains `key`, `include`, `name`, optional `code`/`color`, and an optional numeric `courseId` belonging to the user. Import and refresh return `result` with `createdCourses`, `importedEvents`, `updated`, and `skipped` counts. Writes are transactional.
 

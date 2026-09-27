@@ -161,22 +161,22 @@ The active flag is currently stored metadata: item queries and manual refresh do
 
 `items` holds manual and imported planner entries. `recurrence` is the operative discriminator (`ONE_TIME` or `RECURRING`). Although the schema retains `kind`, current manual writes use an empty string, iCal imports use `EVENT`, and outline deadlines use `TASK`; the current editor does not offer a separate TASK/EVENT mode.
 
-| Column(s) | Current storage behavior |
-| --- | --- |
-| `id`, `uid` | Numeric item identity and user ownership. |
-| `course_id` | Optional reference to a course belonging to the user, checked by the API. |
-| `title`, `description`, `location` | Required title and optional notes/location. |
-| `start_date` | One-time start instant or recurring anchor, stored as an ISO datetime. |
-| `end_date` | One-time end instant; manual recurring series cutoff; imported recurring master occurrence's DTEND. These are different meanings. |
-| `completed` | One-time completion (`0`/`1`); recurring items normally store NULL and use `completions`. |
-| `start_time`, `end_time` | Recurring wall-clock times. Imports also populate these on one-time rows; manual one-time items leave them NULL. |
-| `timezone` | IANA zone used when interpreting recurring wall-clock times. |
-| `all_day` | `1` for imported date-only events; NULL/0 otherwise. |
-| `source_uid` | Optional subscription ID referencing `icals.id`; despite the name, this is an INTEGER. |
-| `ical_uid` | Source VEVENT UID used to match an event within its subscription. NULL for manual items. |
-| `rrule` | Weekly RRULE generated from a manual weekday selection, or the imported feed's rule. NULL for one-time items. |
-| `exdate`, `rdate` | Optional JSON arrays of excluded or additional ISO datetimes from imported feeds. |
-| `created_at`, `updated_at` | Required creation timestamp and optional latest update timestamp. |
+| Column(s)                          | Current storage behavior                                                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `uid`                        | Numeric item identity and user ownership.                                                                                         |
+| `course_id`                        | Optional reference to a course belonging to the user, checked by the API.                                                         |
+| `title`, `description`, `location` | Required title and optional notes/location.                                                                                       |
+| `start_date`                       | One-time start instant or recurring anchor, stored as an ISO datetime.                                                            |
+| `end_date`                         | One-time end instant; manual recurring series cutoff; imported recurring master occurrence's DTEND. These are different meanings. |
+| `completed`                        | One-time completion (`0`/`1`); recurring items normally store NULL and use `completions`.                                         |
+| `start_time`, `end_time`           | Recurring wall-clock times. Imports also populate these on one-time rows; manual one-time items leave them NULL.                  |
+| `timezone`                         | IANA zone used when interpreting recurring wall-clock times.                                                                      |
+| `all_day`                          | `1` for imported date-only events; NULL/0 otherwise.                                                                              |
+| `source_uid`                       | Optional subscription ID referencing `icals.id`; despite the name, this is an INTEGER.                                            |
+| `ical_uid`                         | Source VEVENT UID used to match an event within its subscription. NULL for manual items.                                          |
+| `rrule`                            | Weekly RRULE generated from a manual weekday selection, or the imported feed's rule. NULL for one-time items.                     |
+| `exdate`, `rdate`                  | Optional JSON arrays of excluded or additional ISO datetimes from imported feeds.                                                 |
+| `created_at`, `updated_at`         | Required creation timestamp and optional latest update timestamp.                                                                 |
 
 The database permits NULL date/time columns even where the application requires values. Manual one-time creation requires both start and end; manual recurring creation requires an anchor, weekday selection, and start/end wall-clock times.
 
@@ -204,12 +204,12 @@ User isolation is implemented by API ownership checks and queries scoped to `uid
 
 ## Delete actions
 
-| Deleted row | Database effect |
-| --- | --- |
-| User | Cascade to sessions, courses, subscriptions, items, completions, and settings; settings deletion also removes term dates. |
-| Course | Set referencing items' `course_id` to NULL and delete its saved outline and deadline mappings. |
-| Subscription | Cascade to imported items, then their completions. |
-| Item | Cascade to its recurring completion rows; set any outline mapping’s `item_id` to NULL. |
-| Settings | Cascade to its term-date rows. |
+| Deleted row  | Database effect                                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| User         | Cascade to sessions, courses, subscriptions, items, completions, and settings; settings deletion also removes term dates. |
+| Course       | Set referencing items' `course_id` to NULL and delete its saved outline and deadline mappings.                            |
+| Subscription | Cascade to imported items, then their completions.                                                                        |
+| Item         | Cascade to its recurring completion rows; set any outline mapping’s `item_id` to NULL.                                    |
+| Settings     | Cascade to its term-date rows.                                                                                            |
 
 These actions depend on `PRAGMA foreign_keys = ON`, which the application and standalone schema both enable.
